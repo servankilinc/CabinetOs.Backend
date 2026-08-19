@@ -4,6 +4,7 @@ using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Business.Abstract;
 using CabinetOs.WebAPI.Controllers.Base;
 using CabinetOs.Model.Dtos.Permission.Queries;
+using CabinetOs.Model.Entities;
 
 namespace CabinetOs.WebAPI.Controllers
 {

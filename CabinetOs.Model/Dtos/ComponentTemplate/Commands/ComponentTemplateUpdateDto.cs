@@ -23,7 +23,6 @@ namespace CabinetOs.Model.Dtos.ComponentTemplate.Commands
             RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Field mus be a valid guid value");
             RuleFor(v => v.Name).MinimumLength(2).WithMessage("En az 2 karakter içermeli");
             RuleFor(v => v.DeviceTypeId).NotNull().WithMessage("Tip bilgisi zorunlu lütfen kontrol ediniz");
-            RuleFor(v => v.DeviceTypeId).NotEqual(Guid.Empty).WithMessage("Tip bilgisi zorunlu lütfen kontrol ediniz");
             RuleFor(v => v.Width).GreaterThan(0).WithMessage("Genişlik bilgisi boş geçilemez");
             RuleFor(v => v.Height).GreaterThan(0).WithMessage("Yükseklik bilgisi boş geçilemez");
             RuleFor(v => v.BackgroundColor).NotEmpty().WithMessage("Arka plan rengi zorunlu lütfen kontrol ediniz");

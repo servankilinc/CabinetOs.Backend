@@ -21,6 +21,7 @@ namespace CabinetOs.Model.Dtos.Cabinet.Commands
     {
         public CabinetCreateDtoValidator()
         {
+            RuleFor(v => v.Name).NotNull().WithMessage("İsim bilgisi zorunlu lütfen kontrol ediniz");
             RuleFor(v => v.Name).MinimumLength(2).WithMessage("İsim bilgisi en az 2 karakter içermeli");
             RuleFor(v => v.CompanyId).NotNull().WithMessage("Firma bilgisi zorunlu lütfen kontrol ediniz");
             RuleFor(v => v.CompanyId).NotEqual(Guid.Empty).WithMessage("Firma bilgisi zorunlu lütfen kontrol ediniz");

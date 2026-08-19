@@ -12,10 +12,10 @@ namespace CabinetOs.Business
         {
             services.AddSingleton<ITokenService, TokenService>();
             services.AddScoped<IAuthService, AuthService>();
-#region ENTITY SERVICES
+
+            #region ENTITY SERVICES
             services.AddScoped<ICompanyService, CompanyService>();
             services.AddScoped<ICabinetService, CabinetService>();
-            services.AddScoped<IAuditLogService, AuditLogService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IRoleService, RoleService>();
             services.AddScoped<IRolePermissionService, RolePermissionService>();
@@ -32,7 +32,7 @@ namespace CabinetOs.Business
             services.AddScoped<IDiagramAnnotationService, DiagramAnnotationService>();
             services.AddScoped<IDeviceStatusService, DeviceStatusService>();
             services.AddScoped<IDeviceTypeService, DeviceTypeService>();
-#endregion
+            #endregion
             return services;
         }
     }

@@ -15,7 +15,6 @@ namespace CabinetOs.DataAccess
         {
             services.AddScoped<ICompanyRepository, CompanyRepository>();
             services.AddScoped<ICabinetRepository, CabinetRepository>();
-            services.AddScoped<IAuditLogRepository, AuditLogRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IRoleRepository, RoleRepository>();
             services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
@@ -33,7 +32,8 @@ namespace CabinetOs.DataAccess
             services.AddScoped<IDeviceStatusRepository, DeviceStatusRepository>();
             services.AddScoped<IDeviceTypeRepository, DeviceTypeRepository>();
             services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-#region DB CONTEXT
+
+            #region DB CONTEXT
             services.AddSingleton<AuditInterceptor>();
             services.AddSingleton<ArchiveInterceptor>();
             services.AddSingleton<EntityLifecycleInterceptor>();
@@ -41,7 +41,7 @@ namespace CabinetOs.DataAccess
             {
                 opt.UseSqlServer(configuration.GetConnectionString("Database")).AddInterceptors(serviceProvider.GetRequiredService<AuditInterceptor>()).AddInterceptors(serviceProvider.GetRequiredService<ArchiveInterceptor>()).AddInterceptors(serviceProvider.GetRequiredService<EntityLifecycleInterceptor>());
             });
-#endregion
+            #endregion
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             return services;
         }

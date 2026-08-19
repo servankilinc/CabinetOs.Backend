@@ -298,7 +298,7 @@ namespace CabinetOs.Business.Concrete
 
         private async Task<IList<Claim>> GetClaimsAsync(User user, IList<string>? roles = default)
         {
-            string displayName = $"{user.Name} {user.SurName}".Trim();
+            string displayName = user.FullName.Trim();
             if (string.IsNullOrWhiteSpace(displayName))
                 displayName = user.UserName ?? user.Email ?? user.Id.ToString();
             List<Claim> claimList = new List<Claim>()

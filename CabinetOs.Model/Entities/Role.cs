@@ -5,8 +5,8 @@ namespace CabinetOs.Model.Entities
 {
     public class Role : IdentityRole<Guid>, IEntity, IAuditableEntity, IActivatableEntity
     {
-        public Guid Id { get; set; }
-        public string Name { get; set; } = null!;
+        //public Guid Id { get; set; }
+        //public string Name { get; set; } = null!;
         public bool IsImmutable { get; set; }
         public string? CreatedBy { get; set; }
         public string? UpdatedBy { get; set; }

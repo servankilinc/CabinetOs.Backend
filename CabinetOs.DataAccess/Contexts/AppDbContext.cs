@@ -14,7 +14,6 @@ namespace CabinetOs.DataAccess.Contexts
 
         public DbSet<Company> Companies { get; set; }
         public DbSet<Cabinet> Cabinets { get; set; }
-        public DbSet<AuditLog> AuditLogs { get; set; }
         public  override  DbSet < User > Users { get; set; }
         public  override  DbSet < Role > Roles { get; set; }
         public DbSet<RolePermission> RolePermissions { get; set; }
@@ -51,11 +50,6 @@ namespace CabinetOs.DataAccess.Contexts
                 c.HasKey(c => c.Id);
                 c.HasMany(c => c.Devices).WithOne(d => d.Cabinet).HasForeignKey(d => d.CabinetId).OnDelete(DeleteBehavior.Restrict);
                 c.HasMany(c => c.DiagramAnnotations).WithOne(d => d.Cabinet).HasForeignKey(d => d.CabinetId).OnDelete(DeleteBehavior.Restrict);
-            });
-            modelBuilder.Entity<AuditLog>(a =>
-            {
-                a.ToTable("AuditLog");
-                a.HasKey(a => a.Id);
             });
             modelBuilder.Entity<User>(u =>
             {

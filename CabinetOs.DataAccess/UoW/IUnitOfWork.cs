@@ -8,8 +8,6 @@ namespace CabinetOs.DataAccess.UoW
 
         ICabinetRepository Cabinets { get; }
 
-        IAuditLogRepository AuditLogs { get; }
-
         IUserRepository Users { get; }
 
         IRoleRepository Roles { get; }
