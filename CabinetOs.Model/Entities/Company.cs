@@ -1,0 +1,18 @@
+using CabinetOs.Core.Model;
+
+namespace CabinetOs.Model.Entities
+{
+    public class Company : IEntity, IAuditableEntity, IActivatableEntity
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = null!;
+        public string? Description { get; set; }
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
+        public DateTime? CreateDateUtc { get; set; }
+        public DateTime? UpdateDateUtc { get; set; }
+        public bool IsActive { get; set; }
+        public virtual ICollection<Cabinet>? Cabinets { get; set; }
+        public virtual ICollection<User>? Users { get; set; }
+    }
+}

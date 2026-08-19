@@ -1,0 +1,16 @@
+using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore;
+using CabinetOs.DataAccess.Abstract;
+using CabinetOs.DataAccess.Contexts;
+using CabinetOs.DataAccess.Repository;
+using CabinetOs.Model.Entities;
+
+namespace CabinetOs.DataAccess.Concrete
+{
+    public class DeviceTypeRepository : RepositoryBase<DeviceType, AppDbContext>, IDeviceTypeRepository
+    {
+        public DeviceTypeRepository(AppDbContext context) : base(context)
+        {
+        }
+    }
+}

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="CabinetOs.Business/CabinetOs.Business.csproj" />
+  <Project Path="CabinetOs.Core/CabinetOs.Core.csproj" />
+  <Project Path="CabinetOs.DataAccess/CabinetOs.DataAccess.csproj" />
+  <Project Path="CabinetOs.Model/CabinetOs.Model.csproj" />
+  <Project Path="CabinetOs.WebAPI/CabinetOs.WebAPI.csproj" />
+</Solution>

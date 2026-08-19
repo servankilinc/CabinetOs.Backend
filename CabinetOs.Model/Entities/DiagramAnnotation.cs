@@ -1,0 +1,31 @@
+using CabinetOs.Core.Model;
+
+namespace CabinetOs.Model.Entities
+{
+    public class DiagramAnnotation : IEntity, IAuditableEntity
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = null!;
+        public double CoordinateX { get; set; }
+        public double CoordinateY { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
+        public double Rotation { get; set; }
+        public int ZIndex { get; set; }
+        public bool IsLocked { get; set; }
+        public bool IsVisible { get; set; }
+        public string BackgroundColor { get; set; } = null!;
+        public Guid CabinetId { get; set; }
+        public string Text { get; set; } = null!;
+        public int Shape { get; set; }
+        public string FontColor { get; set; } = null!;
+        public double FontSize { get; set; }
+        public bool IsBold { get; set; }
+        public string BorderColor { get; set; } = null!;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
+        public DateTime? CreateDateUtc { get; set; }
+        public DateTime? UpdateDateUtc { get; set; }
+        public virtual Cabinet? Cabinet { get; set; }
+    }
+}
