@@ -1,22 +1,22 @@
 using CabinetOs.Core.Model;
+using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Model.Dtos.ComponentTemplatePin.Queries
+namespace CabinetOs.Model.Dtos.ComponentTemplatePin.Queries;
+
+public class ComponentTemplatePinDto : IDto
 {
-    public class ComponentTemplatePinDto : IDto
-    {
-        public Guid Id { get; set; }
-        public Guid ComponentTemplateId { get; set; }
-        public string Name { get; set; } = null!;
-        public double RelativeX { get; set; }
-        public double RelativeY { get; set; }
-        public int? ChannelNumber { get; set; }
-        public int Function { get; set; }
-        public int Direction { get; set; }
-        public int SignalLayer { get; set; }
-        public int? VoltageLevel { get; set; }
-        public string? CreatedBy { get; set; }
-        public string? UpdatedBy { get; set; }
-        public DateTime? CreateDateUtc { get; set; }
-        public DateTime? UpdateDateUtc { get; set; }
-    }
+    public Guid Id { get; set; }
+    public Guid ComponentTemplateId { get; set; }
+    public string Name { get; set; } = null!;
+    public double RelativeX { get; set; }
+    public double RelativeY { get; set; }
+    public int? ChannelNumber { get; set; }
+    public PinFunction Function { get; set; }
+    public PinDirection Direction { get; set; }
+    public SignalLayer SignalLayer { get; set; }
+    public VoltageLevel? VoltageLevel { get; set; }
+    public string? CreatedBy { get; set; }
+    public string? UpdatedBy { get; set; }
+    public DateTime? CreateDateUtc { get; set; }
+    public DateTime? UpdateDateUtc { get; set; }
 }

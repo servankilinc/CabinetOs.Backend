@@ -1,10 +1,8 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Business.Abstract;
-using CabinetOs.WebAPI.Controllers.Base;
+using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Model.Dtos.ComponentTemplate.Commands;
-using CabinetOs.Model.Dtos.ComponentTemplate.Queries;
+using CabinetOs.WebAPI.Controllers.Base;
+using Microsoft.AspNetCore.Mvc;
 
 namespace CabinetOs.WebAPI.Controllers
 {
@@ -19,7 +17,7 @@ namespace CabinetOs.WebAPI.Controllers
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> Get(Guid id)
         {
-            var result = await _componentTemplateService.GetAsync(id: id);
+            var result = await _componentTemplateService.GetComponentTemplateDetailDtoAsync(id: id);
             return ToAction(result);
         }
 
@@ -40,7 +38,7 @@ namespace CabinetOs.WebAPI.Controllers
         [HttpPost("list")]
         public async Task<IActionResult> GetList(DynamicRequest? request = default)
         {
-            var result = await _componentTemplateService.GetListAsync(request);
+            var result = await _componentTemplateService.GetComponentTemplateDetailDtoListAsync(request);
             return ToAction(result);
         }
 
@@ -76,6 +74,13 @@ namespace CabinetOs.WebAPI.Controllers
         public async Task<IActionResult> Update(ComponentTemplateUpdateDto request)
         {
             var result = await _componentTemplateService.UpdateAsync(request);
+            return ToAction(result);
+        }
+
+        [HttpGet("selectlist")]
+        public async Task<IActionResult> SelectList()
+        {
+            var result = await _componentTemplateService.SelectListAsync();
             return ToAction(result);
         }
 

@@ -1,4 +1,5 @@
 using System.Linq.Dynamic.Core;
+using System.Text.RegularExpressions;
 
 namespace CabinetOs.Core.Utils.DynamicQuery;
 
@@ -7,6 +8,26 @@ public static class QueryableFilterExtension
     public static readonly HashSet<string> Logics = new(StringComparer.OrdinalIgnoreCase)
     {
         "and", "or"
+    };
+
+    /// <summary>
+    /// Filtre alani ifadeye dogrudan gomuldugu icin bicimi kisitlanmistir: yalnizca
+    /// tanimlayici karakterleri ve en fazla iki seviye nokta (orn. "Company.Name").
+    /// Parantez, bosluk veya operator iceren bir Field, Dynamic LINQ ifadesine
+    /// istemcinin metod cagrisi enjekte etmesine izin verirdi.
+    /// </summary>
+    private static readonly Regex FieldPattern = new(@"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Hicbir sorguda filtrelenmesine izin verilmeyen alanlar. Bunlar uzerinden
+    /// karakter karakter deneme yapilarak parola ozeti disari sizdirilabilirdi.
+    /// </summary>
+    private static readonly HashSet<string> BlockedFieldSegments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "PasswordHash",
+        "SecurityStamp",
+        "ConcurrencyStamp",
+        "Token"
     };
 
     public static readonly Dictionary<string, Func<string, int, string>> OperatorsWithValue = new(StringComparer.OrdinalIgnoreCase)
@@ -45,6 +66,12 @@ public static class QueryableFilterExtension
 
         if (string.IsNullOrWhiteSpace(filter.Field))
             throw new ArgumentException("Empty field for dynamic filter");
+
+        if (!FieldPattern.IsMatch(filter.Field))
+            throw new ArgumentException($"Invalid field for dynamic filter, field: {filter.Field}");
+
+        if (filter.Field.Split('.').Any(BlockedFieldSegments.Contains))
+            throw new ArgumentException($"Field is not filterable, field: {filter.Field}");
 
         if (!OperatorsWithValue.ContainsKey(filter.Operator!) && !OperatorsWithoutValue.ContainsKey(filter.Operator!))
             throw new ArgumentException($"Invalid opreator type for dynamic filter, operator: {filter.Operator}");

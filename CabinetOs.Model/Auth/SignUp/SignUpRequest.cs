@@ -23,6 +23,7 @@ namespace CabinetOs.Model.Auth.SignUp
         {
             RuleFor(b => b.Email).NotNull().NotEmpty().EmailAddress();
             RuleFor(b => b.UserName).NotNull().NotEmpty().MinimumLength(6);
+            RuleFor(b => b.CompanyId).NotEqual(Guid.Empty).WithMessage("Firma bilgisi zorunludur.");
             RuleFor(b => b.Password).NotNull().NotEmpty().MinimumLength(6);
             RuleFor(b => b.ClientType).NotNull().NotEmpty();
         }

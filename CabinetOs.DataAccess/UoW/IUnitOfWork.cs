@@ -16,8 +16,6 @@ namespace CabinetOs.DataAccess.UoW
 
         IPermissionRepository Permissions { get; }
 
-        IUserRoleRepository UserRoles { get; }
-
         IDeviceCommandRepository DeviceCommands { get; }
 
         IConnectionRepository Connections { get; }

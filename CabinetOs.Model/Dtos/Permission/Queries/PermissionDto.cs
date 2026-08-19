@@ -1,8 +1,8 @@
 using CabinetOs.Core.Model;
 
-namespace CabinetOs.Model.Entities;
+namespace CabinetOs.Model.Dtos.Permission.Queries;
 
-public class Permission : IEntity, IAuditableEntity, IImmutableEntity
+public class PermissionDto : IDto
 {
     public int Id { get; set; }
     public string Code { get; set; } = null!;
@@ -12,5 +12,4 @@ public class Permission : IEntity, IAuditableEntity, IImmutableEntity
     public string? UpdatedBy { get; set; }
     public DateTime? CreateDateUtc { get; set; }
     public DateTime? UpdateDateUtc { get; set; }
-    public virtual ICollection<RolePermission>? RolePermissions { get; set; }
 }

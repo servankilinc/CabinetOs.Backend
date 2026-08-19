@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils;
@@ -5,7 +6,13 @@ using CabinetOs.Core.Enums;
 
 namespace CabinetOs.WebAPI.Controllers.Base;
 
+/// <summary>
+/// Tum controller'lar bu sinifi miras alir; [Authorize] burada tanimlandigi icin
+/// varsayilan davranis KAPALI'dir. Anonim erisim gereken uclar (Login, SignUp,
+/// RefreshAuth) kendi uzerlerinde acikca [AllowAnonymous] tasir.
+/// </summary>
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public class BaseController : ControllerBase
 {
@@ -31,7 +38,7 @@ public class BaseController : ControllerBase
     {
         if (result.IsSuccess)
             return Ok(result.Data);
-        
+
         LogFailedProcess(result);
 
         var problemDetails = result.GetProblemDetail();

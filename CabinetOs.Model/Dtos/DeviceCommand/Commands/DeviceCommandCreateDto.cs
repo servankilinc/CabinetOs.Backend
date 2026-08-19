@@ -1,29 +1,29 @@
 using CabinetOs.Core.Model;
+using static CabinetOs.Model.Enums.EntityEnums;
 using FluentValidation;
 
-namespace CabinetOs.Model.Dtos.DeviceCommand.Commands
-{
-    public class DeviceCommandCreateDto : IDto
-    {
-        public Guid DeviceId { get; set; }
-        public Guid? IoChannelId { get; set; }
-        public int CommandType { get; set; }
-        public string? PayloadJson { get; set; }
-        public int Status { get; set; }
-        public Guid? RequestedByUserId { get; set; }
-        public DateTime? SentAt { get; set; }
-        public DateTime? RespondedAt { get; set; }
-        public string? ResultMessage { get; set; }
-    }
+namespace CabinetOs.Model.Dtos.DeviceCommand.Commands;
 
-    public class DeviceCommandCreateDtoValidator : AbstractValidator<DeviceCommandCreateDto>
+public class DeviceCommandCreateDto : IDto
+{
+    public Guid DeviceId { get; set; }
+    public Guid? IoChannelId { get; set; }
+    public DeviceCommandType CommandType { get; set; }
+    public string? PayloadJson { get; set; }
+    public CommandStatus Status { get; set; }
+    public Guid? RequestedByUserId { get; set; }
+    public DateTime? SentAt { get; set; }
+    public DateTime? RespondedAt { get; set; }
+    public string? ResultMessage { get; set; }
+}
+
+public class DeviceCommandCreateDtoValidator : AbstractValidator<DeviceCommandCreateDto>
+{
+    public DeviceCommandCreateDtoValidator()
     {
-        public DeviceCommandCreateDtoValidator()
-        {
-            RuleFor(v => v.DeviceId).NotNull().WithMessage("Cihaz bilgisi girilmeli");
-            RuleFor(v => v.DeviceId).NotEqual(Guid.Empty).WithMessage("Cihaz bilgisi girilmeli");
-            RuleFor(v => v.CommandType).NotNull().WithMessage("Komut tipi girilmeli");
-            RuleFor(v => v.Status).NotNull().WithMessage("Durum bilgisi eksik olamaz");
-        }
+        RuleFor(v => v.DeviceId).NotNull().WithMessage("Cihaz bilgisi girilmeli");
+        RuleFor(v => v.DeviceId).NotEqual(Guid.Empty).WithMessage("Cihaz bilgisi girilmeli");
+        RuleFor(v => v.CommandType).IsInEnum().WithMessage("Komut tipi girilmeli");
+        RuleFor(v => v.Status).IsInEnum().WithMessage("Durum bilgisi eksik olamaz");
     }
 }
