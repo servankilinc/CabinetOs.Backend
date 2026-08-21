@@ -13,6 +13,7 @@ using CabinetOs.Model.Auth.Logout;
 using CabinetOs.Model.Auth.Refresh;
 using CabinetOs.Model.Auth.SignUp;
 using CabinetOs.Model.Dtos.User.Queries;
+using Microsoft.EntityFrameworkCore;
 using CabinetOs.Model.Entities;
 using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
@@ -346,6 +347,56 @@ public class AuthService : IAuthService
         return Result.Success();
     }
 
+    public async Task<Result<CurrentUserDto>> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _unitOfWork.Users.GetAsync(where: f => f.Id == userId, include: i => i.Include(u => u.Company), tracking: false, cancellationToken: cancellationToken);
+        if (user == null)
+            return Result<CurrentUserDto>.NotFound(message: "Oturum sahibi kullanici bulunamadi.");
+
+        IList<string> roles = await _userManager.GetRolesAsync(user);
+        ICollection<string> permissions = await GetPermissionCodesAsync(roles, cancellationToken);
+
+        return Result<CurrentUserDto>.Success(new CurrentUserDto
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            Email = user.Email,
+            FullName = user.FullName,
+            CompanyId = user.CompanyId,
+            CompanyName = user.Company?.Name,
+            IsActive = user.IsActive,
+            Roles = roles,
+            Permissions = permissions
+        });
+    }
+
+    /// <summary>
+    /// Verilen rollere bagli tekil izin kodlari. Rol adindan gidilir cunku Identity
+    /// UserManager.GetRolesAsync yalnizca ad dondurur; RolePermission ise RoleId tutar.
+    /// </summary>
+    private async Task<ICollection<string>> GetPermissionCodesAsync(IList<string> roleNames, CancellationToken cancellationToken = default)
+    {
+        if (roleNames.Count == 0)
+            return Array.Empty<string>();
+
+        var normalizedNames = roleNames.Select(r => r.ToUpperInvariant()).ToList();
+        var roleIds = await _unitOfWork.Roles.GetAllAsync<Guid>(
+            select: r => r.Id,
+            where: r => r.NormalizedName != null && normalizedNames.Contains(r.NormalizedName),
+            cancellationToken: cancellationToken);
+
+        if (roleIds == null || roleIds.Count == 0)
+            return Array.Empty<string>();
+
+        var codes = await _unitOfWork.RolePermissions.GetAllAsync<string>(
+            select: rp => rp.Permission!.Code,
+            where: rp => roleIds.Contains(rp.RoleId),
+            cancellationToken: cancellationToken);
+
+        // Birden fazla rol ayni izni tasiyabilir; token'a mukerrer claim yazmamak icin tekillestirilir.
+        return codes == null ? Array.Empty<string>() : codes.Distinct().ToArray();
+    }
+
     private async Task<IList<Claim>> GetClaimsAsync(User user, IList<string>? roles = default)
     {
         string displayName = user.FullName.Trim();
@@ -354,17 +405,23 @@ public class AuthService : IAuthService
         List<Claim> claimList = new List<Claim>()
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Name, displayName)
+            new Claim(ClaimTypes.Name, displayName),
+            // Multi-tenant izolasyonun kaynagi. Token'a yazilir ki her istekte
+            // veritabanina gitmeden kullanicinin sirketi bilinsin.
+            new Claim(AppClaimTypes.CompanyId, user.CompanyId.ToString())
         };
         if (!string.IsNullOrEmpty(user.Email))
             claimList.Add(new Claim(ClaimTypes.Email, user.Email));
         IList<Claim>? persistentClaims = await _userManager.GetClaimsAsync(user);
         claimList.AddRange(persistentClaims);
-        IEnumerable<Claim> roleClaims = (roles ?? Array.Empty<string>()).Select(role => new Claim(ClaimTypes.Role, role));
-        claimList.AddRange(roleClaims);
-        // password, role vs. deÄŸiÅŸdiÄŸinde mevcut tokenlarÄ± geÃ§ersiz kÄ±lmak iÃ§in security stamp eklenebilir
-        // var securityStamp = await _userManager.GetSecurityStampAsync(user);
-        // claimList.Add(new Claim("app_security_stamp_claim", securityStamp));
+        roles ??= await _userManager.GetRolesAsync(user);
+        claimList.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
+        // Rol -> izin eslemesi token'a gomulur; yetkilendirme her istekte DB'ye gitmez.
+        // Izin sayisi cok buyurse (~50+) token sisecegi icin claim yerine cache'e gecilmelidir.
+        ICollection<string> permissions = await GetPermissionCodesAsync(roles);
+        claimList.AddRange(permissions.Select(code => new Claim(AppClaimTypes.Permission, code)));
+
         return claimList;
     }
 }
