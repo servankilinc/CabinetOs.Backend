@@ -73,6 +73,9 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         {
             p.ToTable("Permission");
             p.HasKey(p => p.Id);
+            // Id'ler EntityEnums.Permission degerlerine sabitlenmistir; IDENTITY uretmemelidir.
+            // (ViewDiagram = 0 oldugu icin bu olmadan HasData seed'i de reddedilir.)
+            p.Property(p => p.Id).ValueGeneratedNever();
             p.HasMany(p => p.RolePermissions).WithOne(r => r.Permission).HasForeignKey(r => r.PermissionId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<DeviceCommand>(d =>
@@ -192,6 +195,18 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
 
     private static void SeedData(ModelBuilder modelBuilder)
     {
+        #region Company
+        modelBuilder.Entity<Company>().HasData(
+            new Company
+            {
+                Id = new Guid("1a86b7a5-b6ed-436b-b4ce-13eec3a57a0b"),
+                Name = "System",
+                Description = "",
+                IsActive = true,
+            }
+        );
+        #endregion
+
         #region DEVICE STATUS
         // Renk ve ikon frontend'in rozet/durum gostergesini cizebilmesi icindir.
         modelBuilder.Entity<DeviceStatus>().HasData(
@@ -255,6 +270,48 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             new DeviceType { Id = (int)EntityEnums.DeviceType.Mains, Name = nameof(EntityEnums.DeviceType.Mains), Category = "Power" },
             new DeviceType { Id = (int)EntityEnums.DeviceType.CircuitBreaker, Name = nameof(EntityEnums.DeviceType.CircuitBreaker), Category = "Power" }
         );
+        #endregion
+
+        #region Role
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.HasData(new Role
+            {
+                Id = new Guid("b370875e-34cd-4b79-891c-93ae38f99d11"),
+                Name = "User",
+                NormalizedName = "USER",
+                ConcurrencyStamp = new Guid("b370875e-34cd-4b79-891c-93ae38f99d11").ToString(),
+                IsImmutable = true,
+                IsActive = true
+            },
+            new Role
+            {
+                Id = new Guid("cd6040ef-dacc-4678-9a85-154f12581cff"),
+                Name = "Manager",
+                NormalizedName = "MANAGER",
+                ConcurrencyStamp = new Guid("cd6040ef-dacc-4678-9a85-154f12581cff").ToString(),
+                IsImmutable = true,
+                IsActive = true
+            },
+            new Role
+            {
+                Id = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                Name = "Admin",
+                NormalizedName = "ADMIN",
+                ConcurrencyStamp = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da").ToString(),
+                IsImmutable = true,
+                IsActive = true
+            },
+            new Role
+            {
+                Id = new Guid("1f20c152-530e-4064-a39c-bbbed341fe84"),
+                Name = "Owner",
+                NormalizedName = "OWNER",
+                ConcurrencyStamp = new Guid("1f20c152-530e-4064-a39c-bbbed341fe84").ToString(),
+                IsImmutable = true,
+                IsActive = true
+            });
+        });
         #endregion
 
 
@@ -329,6 +386,105 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
                 Code = nameof(EntityEnums.Permission.ManageAccessCards),
                 DisplayName = "Gecis kartlarini yonet",
                 Category = "Access"
+            }
+        );
+        #endregion
+
+        #region RolePermision
+        modelBuilder.Entity<RolePermission>().HasData(
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.ViewDiagram
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.EditDiagram
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.ControlOutput
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.AcknowledgeAlarm
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.ManageUsers
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.ConfigureSystem
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.ViewCamera
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.ExportData
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.ManageWorkflow
+            },
+            new RolePermission
+            {
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da"),
+                PermissionId = (int)EntityEnums.Permission.ManageAccessCards
+            }
+        );
+        #endregion
+
+        #region ADMIN USER
+        // DIKKAT: Buradaki tum degerler SABIT olmak zorundadir.
+        // PasswordHasher her cagrida rastgele salt uretir; hash'i burada hesaplarsaniz
+        // her derlemede degisir, EF model degismis sanar ve sonsuz migration uretir.
+        // Bu yuzden hash bir kez uretilip literal olarak yapistirilmistir.
+        // Parola: Admin!2345  -- ILK GIRISTEN SONRA DEGISTIRIN.
+        // Yeni hash uretmek icin: new PasswordHasher<User>().HashPassword(null!, "<parola>")
+        //
+        // Normalized* alanlari UPPERCASE olmalidir: UserManager.FindByNameAsync ve
+        // FindByEmailAsync aramayi bu kolonlar uzerinden yapar. Bos birakilirsa
+        // kullanici veritabaninda durur ama hicbir zaman giris yapamaz.
+        modelBuilder.Entity<User>().HasData(
+            new User
+            {
+                Id = new Guid("3f2b8c14-6d5a-4e79-9c03-8a1f7be24d56"),
+                UserName = "admin",
+                NormalizedUserName = "ADMIN",
+                Email = "admin@cabinetos.local",
+                NormalizedEmail = "ADMIN@CABINETOS.LOCAL",
+                EmailConfirmed = true,
+                PasswordHash = "AQAAAAIAAYagAAAAEPl0XbKqwLMRDvmoUpWzRIoURp+GWrBerfyKXrgX5OM9WFYLNUGb+GEKCmo6Fqfl/w==",
+                SecurityStamp = "5NDWQZ7JHFXK3MTPRV2Y6BCA4EGSU8LO",
+                ConcurrencyStamp = "3f2b8c14-6d5a-4e79-9c03-8a1f7be24d56",
+                PhoneNumberConfirmed = false,
+                TwoFactorEnabled = false,
+                LockoutEnabled = true,
+                AccessFailedCount = 0,
+                FullName = "System Administrator",
+                CompanyId = new Guid("1a86b7a5-b6ed-436b-b4ce-13eec3a57a0b"),
+                IsActive = true
+            }
+        );
+
+        // Kullaniciyi Admin rolune bagla. Identity'nin ara tablosu bir entity degil,
+        // bu yuzden IdentityUserRole<Guid> uzerinden seed edilir.
+        modelBuilder.Entity<IdentityUserRole<Guid>>().HasData(
+            new IdentityUserRole<Guid>
+            {
+                UserId = new Guid("3f2b8c14-6d5a-4e79-9c03-8a1f7be24d56"),
+                RoleId = new Guid("7138ec51-4f9e-4afd-b61b-5a9a4584f5da") // Admin
             }
         );
         #endregion

@@ -1,31 +1,31 @@
-using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.IdentityModel.Tokens;
-using Scalar.AspNetCore;
-using FluentValidation;
+using CabinetOs.Business;
 using CabinetOs.Core;
 using CabinetOs.Core.Utils.Auth;
-using CabinetOs.Model.Entities;
 using CabinetOs.DataAccess;
 using CabinetOs.DataAccess.Contexts;
-using CabinetOs.Business;
+using CabinetOs.Model.Entities;
 using CabinetOs.WebAPI.ExceptionHandler;
 using CabinetOs.WebAPI.Utils;
+using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 
 #region ------- CORS -------
+string[] allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("policy_cors", builder =>
+    options.AddPolicy("policy_cors", policy =>
     {
-        builder
-            .AllowAnyOrigin()
-            //.WithOrigins("https://www.frontend.com")
-            //.AllowCredentials() // AllowAnyOrigin and AllowCredentials cannot using together so open when you use WithOrigins
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowCredentials()
             .AllowAnyMethod()
             .AllowAnyHeader()
             //.WithHeaders("Content-Type", "Authorization")
@@ -39,13 +39,21 @@ builder.Services.AddCors(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddSlidingWindowLimiter(policyName: "policy_rate_limiter", slidingOptions =>
+
+    options.AddPolicy("policy_rate_limiter", httpContext =>
     {
-        slidingOptions.PermitLimit = 15;
-        slidingOptions.Window = TimeSpan.FromSeconds(5);
-        slidingOptions.SegmentsPerWindow = 4;
-        slidingOptions.QueueLimit = 5;
-        slidingOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        string partitionKey = httpContext.User.Identity?.IsAuthenticated == true
+            ? $"user:{httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? httpContext.User.Identity.Name}"
+            : $"ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+        return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 50,
+            Window = TimeSpan.FromSeconds(10),
+            SegmentsPerWindow = 4,
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        });
     });
 });
 #endregion
@@ -87,6 +95,8 @@ builder.Services.AddBusinessServices(builder.Configuration);
 
             #region ------- JWT Implementation -------
             TokenSettings tokenSettings = builder.Configuration.GetSection("TokenSettings").Get<TokenSettings>()!;
+            if (string.IsNullOrWhiteSpace(tokenSettings.SecurityKey))
+                throw new InvalidOperationException("TokenSettings:SecurityKey tanimli degil. 'dotnet user-secrets set \"TokenSettings:SecurityKey\" \"<64+ karakterlik gizli anahtar>\"' calistirin veya TokenSettings__SecurityKey ortam degiskenini ayarlayin.");
             builder.Services.AddSingleton(tokenSettings);
 
             builder.Services
@@ -139,15 +149,16 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+
 app.UseExceptionHandler();
 
 //app.UseStaticFiles();
 
-//if (app.Environment.IsDevelopment())
-//{
-app.MapOpenApi();
-app.MapScalarApiReference();
-//}
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
 
 app.UseHttpsRedirection();
 

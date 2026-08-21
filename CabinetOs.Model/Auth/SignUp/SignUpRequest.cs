@@ -22,9 +22,12 @@ namespace CabinetOs.Model.Auth.SignUp
         public SignUpRequestValidator()
         {
             RuleFor(b => b.Email).NotNull().NotEmpty().EmailAddress();
-            RuleFor(b => b.UserName).NotNull().NotEmpty().MinimumLength(6);
+            RuleFor(b => b.UserName).NotNull().NotEmpty().MinimumLength(3);
+            RuleFor(b => b.FullName).NotNull().NotEmpty().MaximumLength(150);
             RuleFor(b => b.CompanyId).NotEqual(Guid.Empty).WithMessage("Firma bilgisi zorunludur.");
-            RuleFor(b => b.Password).NotNull().NotEmpty().MinimumLength(6);
+            // Program.cs'teki Identity options.Password.RequiredLength ile ayni esik olmali;
+            // aksi halde bu dogrulamayi gecen bir kayit Identity tarafindan reddedilir.
+            RuleFor(b => b.Password).NotNull().NotEmpty().MinimumLength(4);
             RuleFor(b => b.ClientType).NotNull().NotEmpty();
         }
     }

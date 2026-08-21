@@ -27,6 +27,8 @@ using CabinetOs.Model.Dtos.Pin.Commands;
 using CabinetOs.Model.Dtos.Pin.Queries;
 using CabinetOs.Model.Dtos.Role.Commands;
 using CabinetOs.Model.Dtos.Role.Queries;
+using CabinetOs.Model.Dtos.RolePermission.Commands;
+using CabinetOs.Model.Dtos.RolePermission.Queries;
 using CabinetOs.Model.Dtos.User.Commands;
 using CabinetOs.Model.Dtos.User.Queries;
 using CabinetOs.Model.Entities;
@@ -69,6 +71,8 @@ public class MappingProfiles : Profile
         CreateMap<RoleUpdateDto, Role>().ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id)).ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name)).ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive)).ReverseMap();
 
         CreateMap<RolePermission, RolePermission>().ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+        CreateMap<RolePermission, RolePermissionDto>().ForMember(dest => dest.RoleId, opt => opt.MapFrom(src => src.RoleId)).ForMember(dest => dest.PermissionId, opt => opt.MapFrom(src => src.PermissionId)).ForMember(dest => dest.PermissionCode, opt => opt.MapFrom(src => src.Permission != default ? src.Permission.Code : default)).ForMember(dest => dest.PermissionDisplayName, opt => opt.MapFrom(src => src.Permission != default ? src.Permission.DisplayName : default)).ForMember(dest => dest.PermissionCategory, opt => opt.MapFrom(src => src.Permission != default ? src.Permission.Category : default)).ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+        CreateMap<RolePermissionCreateDto, RolePermission>().ForMember(dest => dest.RoleId, opt => opt.MapFrom(src => src.RoleId)).ForMember(dest => dest.PermissionId, opt => opt.MapFrom(src => src.PermissionId)).ReverseMap();
 
         CreateMap<Permission, Permission>().ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
         CreateMap<Permission, PermissionDto>().ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id)).ForMember(dest => dest.Code, opt => opt.MapFrom(src => src.Code)).ForMember(dest => dest.DisplayName, opt => opt.MapFrom(src => src.DisplayName)).ForMember(dest => dest.Category, opt => opt.MapFrom(src => src.Category)).ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy)).ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy)).ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc)).ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc)).ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));

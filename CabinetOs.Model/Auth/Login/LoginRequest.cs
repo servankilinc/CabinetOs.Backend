@@ -19,9 +19,9 @@ namespace CabinetOs.Model.Auth.Login
         public LoginRequestValidator()
         {
             RuleFor(b => b).Must(b => !string.IsNullOrWhiteSpace(b.Email) || !string.IsNullOrWhiteSpace(b.UserName)).WithMessage("Either Email or UserName must be provided.");
-            RuleFor(b => b.UserName).MinimumLength(6).When(b => !string.IsNullOrWhiteSpace(b.UserName));
-            RuleFor(b => b.Email).EmailAddress().When(b => !string.IsNullOrWhiteSpace(b.Email));
-            RuleFor(b => b.Password).NotNull().NotEmpty().MinimumLength(6);
+            RuleFor(b => b.Email).NotEmpty().EmailAddress().When(b => string.IsNullOrWhiteSpace(b.UserName));
+            RuleFor(b => b.UserName).NotEmpty().When(b => string.IsNullOrWhiteSpace(b.Email));
+            RuleFor(b => b.Password).NotNull().NotEmpty();
             RuleFor(b => b.ClientType).NotNull().NotEmpty();
         }
     }
