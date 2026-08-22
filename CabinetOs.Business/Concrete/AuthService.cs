@@ -114,7 +114,8 @@ public class AuthService : IAuthService
                 RefreshToken = tokenValue,
                 DeviceId = refreshToken.Data.DeviceId,
                 User = _mapper.Map<UserBaseDto>(user),
-                Roles = roles
+                Roles = roles,
+                Permissions = await GetPermissionCodesAsync(roles, cancellationToken)
             });
         }
         else
@@ -125,7 +126,8 @@ public class AuthService : IAuthService
                 AccessToken = accessToken.Data,
                 DeviceId = refreshToken.Data.DeviceId,
                 User = _mapper.Map<UserBaseDto>(user),
-                Roles = roles
+                Roles = roles,
+                Permissions = await GetPermissionCodesAsync(roles, cancellationToken)
             });
         }
     }
@@ -345,29 +347,6 @@ public class AuthService : IAuthService
             await _userManager.UpdateSecurityStampAsync(user);
         _httpContextManager.DeletetRefreshTokenFromCookie();
         return Result.Success();
-    }
-
-    public async Task<Result<CurrentUserDto>> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken = default)
-    {
-        var user = await _unitOfWork.Users.GetAsync(where: f => f.Id == userId, include: i => i.Include(u => u.Company), tracking: false, cancellationToken: cancellationToken);
-        if (user == null)
-            return Result<CurrentUserDto>.NotFound(message: "Oturum sahibi kullanici bulunamadi.");
-
-        IList<string> roles = await _userManager.GetRolesAsync(user);
-        ICollection<string> permissions = await GetPermissionCodesAsync(roles, cancellationToken);
-
-        return Result<CurrentUserDto>.Success(new CurrentUserDto
-        {
-            Id = user.Id,
-            UserName = user.UserName,
-            Email = user.Email,
-            FullName = user.FullName,
-            CompanyId = user.CompanyId,
-            CompanyName = user.Company?.Name,
-            IsActive = user.IsActive,
-            Roles = roles,
-            Permissions = permissions
-        });
     }
 
     /// <summary>

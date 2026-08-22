@@ -70,18 +70,6 @@ public class AccountController : BaseController
         return ToAction(result);
     }
 
-    [Authorize]
-    [HttpGet("Me")]
-    public async Task<IActionResult> Me()
-    {
-        if (!TryGetUserId(out var userId))
-            return Forbid();
-
-        var result = await _authService.GetCurrentUserAsync(userId);
-
-        return ToAction(result);
-    }
-
     private bool TryGetUserId(out Guid userId)
         => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
 }
