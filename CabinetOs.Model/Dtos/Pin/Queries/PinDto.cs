@@ -10,7 +10,6 @@ public class PinDto : IDto
     public double RelativeX { get; set; }
     public double RelativeY { get; set; }
     public PinFunction Function { get; set; }
-    public SignalLayer SignalLayer { get; set; }
     public VoltageLevel? VoltageLevel { get; set; }
     public Guid DeviceId { get; set; }
 }

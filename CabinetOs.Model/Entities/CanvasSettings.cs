@@ -6,6 +6,7 @@ namespace CabinetOs.Model.Entities;
 public class CanvasSettings : IEntity, IAuditableEntity
 {
     public Guid Id { get; set; }
+    public Guid CabinetId { get; set; }
     public int GridSize { get; set; }
     public bool SnapToGrid { get; set; }
     public BackgroundVariant BackgroundVariant { get; set; }
@@ -17,4 +18,5 @@ public class CanvasSettings : IEntity, IAuditableEntity
     public string? UpdatedBy { get; set; }
     public DateTime? CreateDateUtc { get; set; }
     public DateTime? UpdateDateUtc { get; set; }
+    public virtual Cabinet? Cabinet { get; set; }
 }

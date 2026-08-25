@@ -6,6 +6,7 @@ namespace CabinetOs.Model.Dtos.CanvasSettings.Commands
 {
     public class CanvasSettingsCreateDto : IDto
     {
+        public Guid CabinetId { get; set; }
         public int GridSize { get; set; }
         public bool SnapToGrid { get; set; }
         public BackgroundVariant BackgroundVariant { get; set; }
@@ -19,6 +20,7 @@ namespace CabinetOs.Model.Dtos.CanvasSettings.Commands
     {
         public CanvasSettingsCreateDtoValidator()
         {
+            RuleFor(v => v.CabinetId).NotEqual(Guid.Empty).WithMessage("Kabin bilgisi zorunlu");
             RuleFor(v => v.GridSize).NotNull().WithMessage("Field cannot be null");
             RuleFor(v => v.SnapToGrid).NotNull().WithMessage("Field cannot be null");
             RuleFor(v => v.BackgroundVariant).IsInEnum().WithMessage("Field cannot be null");

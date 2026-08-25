@@ -14,7 +14,7 @@ namespace CabinetOs.Model.Entities
         public string? NetworkIp { get; set; }
         public int? DeviceStatusId { get; set; }
         public DateTime? LastSeen { get; set; }
-        public string ScadaBaseUrl { get; set; } = null!;
+        public string? ScadaBaseUrl { get; set; }
         public bool ScadaIsEnabled { get; set; }
         public int ScadaCommandTimeoutMs { get; set; }
         public DateTime? ScadaLastIngestAt { get; set; }
@@ -27,5 +27,8 @@ namespace CabinetOs.Model.Entities
         public virtual DeviceStatus? DeviceStatus { get; set; }
         public virtual ICollection<Device>? Devices { get; set; }
         public virtual ICollection<DiagramAnnotation>? DiagramAnnotations { get; set; }
+        public virtual ICollection<Connection>? Connections { get; set; }
+        /// <summary>Kabin basina tek satir (1:1) — canvas tercihleri.</summary>
+        public virtual CanvasSettings? CanvasSettings { get; set; }
     }
 }

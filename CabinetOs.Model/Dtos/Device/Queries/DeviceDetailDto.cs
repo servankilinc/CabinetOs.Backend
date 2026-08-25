@@ -16,7 +16,7 @@ namespace CabinetOs.Model.Dtos.Device.Queries
         public Guid ComponentTemplateId { get; set; }
         public string ComponentTemplateName { get; set; } = null!;
         public int? DeviceStatusId { get; set; }
-        public string DeviceStatusName { get; set; } = null!;
+        public string? DeviceStatusName { get; set; }
         public string? IpAddress { get; set; }
         public string? MacAddress { get; set; }
         public string? ExternalCode { get; set; }

@@ -13,8 +13,8 @@ namespace CabinetOs.Model.Dtos.Cabinet.Queries
         public string? LocationDescription { get; set; }
         public string? GsmIp { get; set; }
         public string? NetworkIp { get; set; }
-        public int DeviceStatusId { get; set; }
-        public string DeviceStatusName { get; set; } = null!;
+        public int? DeviceStatusId { get; set; }
+        public string? DeviceStatusName { get; set; }
         public string? CreatedBy { get; set; }
         public string? UpdatedBy { get; set; }
         public DateTime? CreateDateUtc { get; set; }

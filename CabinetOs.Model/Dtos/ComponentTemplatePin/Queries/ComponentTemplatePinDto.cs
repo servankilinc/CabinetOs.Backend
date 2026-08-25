@@ -10,10 +10,10 @@ public class ComponentTemplatePinDto : IDto
     public string Name { get; set; } = null!;
     public double RelativeX { get; set; }
     public double RelativeY { get; set; }
+    public HandleSide Side { get; set; }
     public int? ChannelNumber { get; set; }
     public PinFunction Function { get; set; }
     public PinDirection Direction { get; set; }
-    public SignalLayer SignalLayer { get; set; }
     public VoltageLevel? VoltageLevel { get; set; }
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }

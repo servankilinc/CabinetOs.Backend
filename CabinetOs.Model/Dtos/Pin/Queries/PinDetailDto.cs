@@ -10,9 +10,8 @@ public class PinDetailDto : IDto
     public double RelativeX { get; set; }
     public double RelativeY { get; set; }
     public Guid? IoChannelId { get; set; }
-    public string IoChannelName { get; set; } = null!;
+    public string? IoChannelName { get; set; }
     public PinFunction Function { get; set; }
-    public SignalLayer SignalLayer { get; set; }
     public VoltageLevel? VoltageLevel { get; set; }
     public Guid DeviceId { get; set; }
     public string DeviceName { get; set; } = null!;

@@ -50,6 +50,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             c.HasKey(c => c.Id);
             c.HasMany(c => c.Devices).WithOne(d => d.Cabinet).HasForeignKey(d => d.CabinetId).OnDelete(DeleteBehavior.Restrict);
             c.HasMany(c => c.DiagramAnnotations).WithOne(d => d.Cabinet).HasForeignKey(d => d.CabinetId).OnDelete(DeleteBehavior.Restrict);
+            c.HasMany(c => c.Connections).WithOne(c => c.Cabinet).HasForeignKey(c => c.CabinetId).OnDelete(DeleteBehavior.Restrict);
+            c.HasIndex(c => new { c.CompanyId, c.Name }).IsUnique().HasFilter("[IsActive] = 1");
         });
         modelBuilder.Entity<User>(u =>
         {
@@ -86,8 +88,13 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         });
         modelBuilder.Entity<Connection>(c =>
         {
-            c.ToTable("Connection");
+            c.ToTable("Connection", t =>
+            {
+                t.HasCheckConstraint("CK_Connection_DistinctPins", "[SourcePinId] <> [TargetPinId]");
+            });
             c.HasKey(c => c.Id);
+            c.HasIndex(c => c.CabinetId);
+            c.HasIndex(c => new { c.SourcePinId, c.TargetPinId }).IsUnique().HasFilter("[IsDeleted] = 0");
             c.HasQueryFilter(f => !f.IsDeleted);
         });
         modelBuilder.Entity<IoChannel>(i =>
@@ -96,20 +103,29 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             i.HasKey(i => i.Id);
             i.HasMany(i => i.Pins).WithOne(p => p.IoChannel).HasForeignKey(p => p.IoChannelId).OnDelete(DeleteBehavior.Restrict);
             i.HasMany(i => i.DeviceCommands).WithOne(d => d.IoChannel).HasForeignKey(d => d.IoChannelId).OnDelete(DeleteBehavior.Restrict);
+            i.HasIndex(i => new { i.DeviceId, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
             i.HasQueryFilter(f => !f.IsDeleted);
         });
         modelBuilder.Entity<Pin>(p =>
         {
-            p.ToTable("Pin");
+            p.ToTable("Pin", t =>
+            {
+                // RelativeX/Y birimi: sablonun Width/Height'inin 0..1 normalize kesri.
+                // Kisit, birimi semada kendini belgeleyecek sekilde sabitler.
+                t.HasCheckConstraint("CK_Pin_RelativeX", "[RelativeX] >= 0.0 AND [RelativeX] <= 1.0");
+                t.HasCheckConstraint("CK_Pin_RelativeY", "[RelativeY] >= 0.0 AND [RelativeY] <= 1.0");
+            });
             p.HasKey(p => p.Id);
             p.HasMany(p => p.SourcePinConnections).WithOne(c => c.SourcePin).HasForeignKey(c => c.SourcePinId).OnDelete(DeleteBehavior.Restrict);
             p.HasMany(p => p.TargetPinConnections).WithOne(c => c.TargetPin).HasForeignKey(c => c.TargetPinId).OnDelete(DeleteBehavior.Restrict);
+            p.HasIndex(p => new { p.DeviceId, p.Name }).IsUnique().HasFilter("[IsDeleted] = 0");
             p.HasQueryFilter(f => !f.IsDeleted);
         });
         modelBuilder.Entity<CanvasSettings>(c =>
         {
             c.ToTable("CanvasSettings");
             c.HasKey(c => c.Id);
+            c.HasOne(c => c.Cabinet).WithOne(c => c.CanvasSettings).HasForeignKey<CanvasSettings>(c => c.CabinetId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ComponentTemplate>(c =>
         {
@@ -120,8 +136,14 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         });
         modelBuilder.Entity<ComponentTemplatePin>(c =>
         {
-            c.ToTable("ComponentTemplatePin");
+            c.ToTable("ComponentTemplatePin", t =>
+            {
+                t.HasCheckConstraint("CK_ComponentTemplatePin_RelativeX", "[RelativeX] >= 0.0 AND [RelativeX] <= 1.0");
+                t.HasCheckConstraint("CK_ComponentTemplatePin_RelativeY", "[RelativeY] >= 0.0 AND [RelativeY] <= 1.0");
+            });
             c.HasKey(c => c.Id);
+            c.HasMany(c => c.Pins).WithOne(p => p.ComponentTemplatePin).HasForeignKey(p => p.ComponentTemplatePinId).OnDelete(DeleteBehavior.Restrict);
+            c.HasIndex(c => new { c.ComponentTemplateId, c.Name }).IsUnique();
         });
         modelBuilder.Entity<Device>(d =>
         {
@@ -130,6 +152,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             d.HasMany(d => d.IoChannels).WithOne(i => i.Device).HasForeignKey(i => i.DeviceId).OnDelete(DeleteBehavior.Restrict);
             d.HasMany(d => d.Pins).WithOne(p => p.Device).HasForeignKey(p => p.DeviceId).OnDelete(DeleteBehavior.Restrict);
             d.HasMany(d => d.DeviceCommands).WithOne(d => d.Device).HasForeignKey(d => d.DeviceId).OnDelete(DeleteBehavior.Restrict);
+            d.HasIndex(d => new { d.CabinetId, d.ExternalCode }).IsUnique().HasFilter("[ExternalCode] IS NOT NULL AND [IsActive] = 1");    
         });
         modelBuilder.Entity<DiagramAnnotation>(d =>
         {
@@ -488,5 +511,181 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             }
         );
         #endregion
+
+        SeedStarterTemplates(modelBuilder);
     }
+
+    #region STARTER COMPONENT TEMPLATES
+    // Palet bos acilmasin diye sistem sablonlari. IsSystemTemplate = true olanlar
+    // kullanici tarafindan duzenlenmez; kullanici kendi sablonunu yazana kadar
+    // diyagram editoru bunlarla calisir.
+    //
+    // Id'ler DETERMINISTIK uretilir (DeviceType + sira). Rastgele Guid.NewGuid()
+    // kullanilsaydi her derlemede degisir, EF model degismis sanar ve sonsuz
+    // migration uretirdi -- admin kullanici seed'indeki parola hash'i notuyla ayni sebep.
+
+    /// <summary>Bir sablon pininin konumdan bagimsiz tanimi; RelativeX/Y yerlestirme sirasinda hesaplanir.</summary>
+    private readonly record struct PinSpec(
+        string Name,
+        EntityEnums.HandleSide Side,
+        EntityEnums.PinFunction Function,
+        EntityEnums.PinDirection Direction,
+        EntityEnums.VoltageLevel? Voltage = null,
+        int? Channel = null);
+
+    private static Guid SeedTemplateId(int deviceTypeId)
+        => new($"7e000000-0000-0000-0000-{deviceTypeId:D12}");
+
+    private static Guid SeedPinId(int deviceTypeId, int sequence)
+        => new($"7e100000-0000-0000-{deviceTypeId:D4}-{sequence:D12}");
+
+    /// <summary>Numaralandirilmis pin serisi uretir: IN1..IN8 gibi.</summary>
+    private static IEnumerable<PinSpec> Series(
+        string prefix, int count, EntityEnums.HandleSide side,
+        EntityEnums.PinFunction function, EntityEnums.PinDirection direction,
+        EntityEnums.VoltageLevel? voltage = null,
+        bool numberChannels = false)
+        => Enumerable.Range(1, count).Select(n => new PinSpec(
+            $"{prefix}{n}", side, function, direction, voltage,
+            numberChannels ? n : null));
+
+    /// <summary>
+    /// Sistem sablonlarinin varsayilan zemin rengi (0xRRGGBB).
+    ///
+    /// Tip basina AYRI renk: hepsi ayni tonda oldugunda ne palet karti ne de
+    /// canvas'taki kutu birbirinden ayirt edilebiliyordu — bir gucu kaynagini
+    /// bir giris kartindan ayirmak icin adini okumak gerekiyordu.
+    ///
+    /// Tonlar acik secilir; kutu etiketi <c>readableTextColor()</c> ile
+    /// hesaplandigi icin koyu renkler de calisir, ama acik zemin uzerinde pin
+    /// isimleri ve durum rozetleri daha okunur kaliyor.
+    /// </summary>
+    private static int TypeColor(EntityEnums.DeviceType type) => type switch
+    {
+        EntityEnums.DeviceType.ControlModule => 0xDBEAFE,      // mavi
+        EntityEnums.DeviceType.InputModule => 0xDCFCE7,        // yesil
+        EntityEnums.DeviceType.OutputModule => 0xFEE2E2,       // kirmizi
+        EntityEnums.DeviceType.LedModule => 0xFEF9C3,          // sari
+        EntityEnums.DeviceType.TerminalBlock => 0xE2E8F0,      // gri
+        EntityEnums.DeviceType.Sensor => 0xE0E7FF,             // indigo
+        EntityEnums.DeviceType.Peripheral => 0xF3E8FF,         // mor
+        EntityEnums.DeviceType.PowerSupply => 0xFFEDD5,        // turuncu
+        EntityEnums.DeviceType.MeasurementDevice => 0xCCFBF1,  // turkuaz
+        EntityEnums.DeviceType.CardReader => 0xFCE7F3,         // pembe
+        EntityEnums.DeviceType.Mains => 0xFECACA,              // koyu kirmizi
+        EntityEnums.DeviceType.CircuitBreaker => 0xFED7AA,     // koyu turuncu
+        _ => 0xF1F5F9
+    };
+
+    private static void SeedStarterTemplates(ModelBuilder modelBuilder)
+    {
+        var templates = new List<ComponentTemplate>();
+        var pins = new List<ComponentTemplatePin>();
+
+        void Template(EntityEnums.DeviceType type, string name, double width, double height, params PinSpec[] specs)
+        {
+            var typeId = (int)type;
+            var templateId = SeedTemplateId(typeId);
+            templates.Add(new ComponentTemplate
+            {
+                Id = templateId,
+                Name = name,
+                DeviceTypeId = typeId,
+                IsSystemTemplate = true,
+                Width = width,
+                Height = height,
+                BackgroundColor = TypeColor(type),
+                IsActive = true
+            });
+
+            // Pinler kenar bazinda esit araliklarla dagitilir: n pin icin i. pinin
+            // orani (i + 0.5) / n olur, yani ilk ve son pin kenara yapismaz.
+            var sequence = 0;
+            foreach (var group in specs.GroupBy(s => s.Side))
+            {
+                var sidePins = group.ToList();
+                for (var i = 0; i < sidePins.Count; i++)
+                {
+                    var spec = sidePins[i];
+                    var offset = (i + 0.5d) / sidePins.Count;
+                    pins.Add(new ComponentTemplatePin
+                    {
+                        Id = SeedPinId(typeId, ++sequence),
+                        ComponentTemplateId = templateId,
+                        Name = spec.Name,
+                        Side = spec.Side,
+                        RelativeX = spec.Side switch
+                        {
+                            EntityEnums.HandleSide.Left => 0d,
+                            EntityEnums.HandleSide.Right => 1d,
+                            _ => offset
+                        },
+                        RelativeY = spec.Side switch
+                        {
+                            EntityEnums.HandleSide.Top => 0d,
+                            EntityEnums.HandleSide.Bottom => 1d,
+                            _ => offset
+                        },
+                        Function = spec.Function,
+                        Direction = spec.Direction,
+                        VoltageLevel = spec.Voltage,
+                        ChannelNumber = spec.Channel
+                    });
+                }
+            }
+        }
+
+        Template(EntityEnums.DeviceType.ControlModule, "Kontrol Modulu", 220, 170,
+            new PinSpec("RJ45", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.RJ45, EntityEnums.PinDirection.Bidirectional, EntityEnums.VoltageLevel.Data),
+            new PinSpec("RS485-A", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.RS485_POS, EntityEnums.PinDirection.Bidirectional, EntityEnums.VoltageLevel.Data),
+            new PinSpec("RS485-B", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.RS485_NEG, EntityEnums.PinDirection.Bidirectional, EntityEnums.VoltageLevel.Data),
+            new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+            new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V));
+
+        Template(EntityEnums.DeviceType.InputModule, "8 Kanal Giris Karti", 200, 260,
+            [.. Series("IN", 8, EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Signal_In, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.Signal_5V, numberChannels: true),
+             new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+             new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V)]);
+
+        Template(EntityEnums.DeviceType.OutputModule, "8 Kanal Role Cikis Karti", 200, 260,
+            [new PinSpec("+12V", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+             new PinSpec("GND", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+             .. Series("OUT", 8, EntityEnums.HandleSide.Right, EntityEnums.PinFunction.NO, EntityEnums.PinDirection.Output, null, numberChannels: true)]);
+
+        Template(EntityEnums.DeviceType.LedModule, "8 Kanal LED Karti", 180, 240,
+            [new PinSpec("+12V", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+             new PinSpec("GND", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+             .. Series("LD", 8, EntityEnums.HandleSide.Right, EntityEnums.PinFunction.LED_Anode, EntityEnums.PinDirection.Output, null, numberChannels: true)]);
+
+        Template(EntityEnums.DeviceType.TerminalBlock, "Klemens Blogu", 140, 200,
+            [.. Series("T", 6, EntityEnums.HandleSide.Left, EntityEnums.PinFunction.General, EntityEnums.PinDirection.Bidirectional),
+             // Karsi taraf: T1 <-> T1' ayni klemensin iki yuzudur.
+             .. Series("T", 6, EntityEnums.HandleSide.Right, EntityEnums.PinFunction.General, EntityEnums.PinDirection.Bidirectional)
+                .Select(p => p with { Name = p.Name + "'" })]);
+
+        Template(EntityEnums.DeviceType.PowerSupply, "Guc Kaynagi 220AC / 12DC", 190, 140,
+            new PinSpec("L", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Line_L, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.AC_220V),
+            new PinSpec("N", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Neutral_N, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.AC_220V),
+            new PinSpec("PE", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Earth_PE, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.AC_220V),
+            new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.DC_12V),
+            new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.DC_12V));
+
+        Template(EntityEnums.DeviceType.Mains, "Sebeke Girisi", 150, 120,
+            new PinSpec("L", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.Line_L, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.AC_220V),
+            new PinSpec("N", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.Neutral_N, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.AC_220V),
+            new PinSpec("PE", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.Earth_PE, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.AC_220V));
+
+        Template(EntityEnums.DeviceType.CircuitBreaker, "Sigorta / Devre Kesici", 130, 90,
+            new PinSpec("IN", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.General, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.AC_220V),
+            new PinSpec("OUT", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.General, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.AC_220V));
+
+        Template(EntityEnums.DeviceType.Sensor, "Sensor (3 Telli)", 140, 110,
+            new PinSpec("+12V", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+            new PinSpec("GND", EntityEnums.HandleSide.Left, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+            new PinSpec("SIG", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.Signal_Out, EntityEnums.PinDirection.Output, EntityEnums.VoltageLevel.Signal_5V));
+
+        modelBuilder.Entity<ComponentTemplate>().HasData(templates);
+        modelBuilder.Entity<ComponentTemplatePin>().HasData(pins);
+    }
+    #endregion
 }
