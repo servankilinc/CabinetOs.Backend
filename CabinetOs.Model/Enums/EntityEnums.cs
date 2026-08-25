@@ -97,23 +97,13 @@ public static class EntityEnums
         Bidirectional = 2
     }
 
-    /// <summary>
-    /// Pinden geçen sinyalin fiziksel katmanı.
-    /// Diyagramda katman bazlı filtreleme (güç katmanı, sinyal katmanı,
-    /// veri katmanı) bu enum ile yapılır.
-    /// </summary>
-    public enum SignalLayer
+    /// <summary> React Flow bir handle'ı yerleştirmek için kenarı AÇIKÇA ister; <c>RelativeX/Y</c> tek başına yetmez </summary>
+    public enum HandleSide
     {
-        /// <summary>Güç beslemesi — 12VDC, 24VDC, 220AC hatları.</summary>
-        Power = 0,
-        /// <summary>Analog sinyal — sıcaklık, akım, gerilim ölçümü.</summary>
-        Analog = 1,
-        /// <summary>Dijital sinyal — röle kontağı, kuru kontak, LED.</summary>
-        Digital = 2,
-        /// <summary>Seri haberleşme — RS485 A/B, RS232 TX/RX.</summary>
-        Serial = 3,
-        /// <summary>Ağ verisi — RJ45 Ethernet.</summary>
-        Network = 4
+        Left = 0,
+        Right = 1,
+        Top = 2,
+        Bottom = 3
     }
 
     /// <summary>
@@ -243,7 +233,9 @@ public static class EntityEnums
         /// <summary>Çerçeveli kutu.</summary>
         Rectangle = 1,
         /// <summary>Not / açıklama balonu.</summary>
-        Note = 2
+        Note = 2,
+        /// <summary> Yön oku. </summary>
+        Arrow = 3
     }
 
     /// <summary>
