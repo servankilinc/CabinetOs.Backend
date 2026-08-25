@@ -25,6 +25,14 @@ public class HttpContextManager : IHttpContextManager
         return string.IsNullOrWhiteSpace(id) ? Result<string>.NotFound() : Result<string>.Success(id);
     }
 
+    public Result<string> GetName()
+    {
+        if (_httpContextAccessor.HttpContext == null) return Result<string>.Failure("Not exist HttpContext inside HttpContextManager.GetName!");
+
+        var name = _httpContextAccessor.HttpContext.User?.FindFirst(ClaimTypes.Name)?.Value;
+        return string.IsNullOrWhiteSpace(name) ? Result<string>.NotFound() : Result<string>.Success(name);
+    }
+
     public Result<string> GetUserAgent()
     {
         if (_httpContextAccessor.HttpContext == null) return Result<string>.Failure("Not exist HttpContext inside HttpContextManager.GetUserAgent!");

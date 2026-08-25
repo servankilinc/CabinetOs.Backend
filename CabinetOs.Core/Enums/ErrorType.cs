@@ -1,5 +1,3 @@
-using System.ComponentModel;
-
 namespace CabinetOs.Core.Enums;
 
 public enum ErrorType : int

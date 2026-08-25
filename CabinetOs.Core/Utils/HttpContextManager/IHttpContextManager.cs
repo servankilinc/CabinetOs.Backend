@@ -6,6 +6,8 @@ namespace CabinetOs.Core.Utils.HttpContextManager
     public interface IHttpContextManager
     {
         Result<string> GetNameIdentifier();
+        /// <summary> Oturumdaki kullanicinin GORUNEN adi (<c>ClaimTypes.Name</c>). </summary>
+        Result<string> GetName();
         Result<string> GetUserAgent();
         Result<string> GetClientIp();
         Result<string> GetCurrentCulture();
