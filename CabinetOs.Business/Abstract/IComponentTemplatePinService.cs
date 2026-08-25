@@ -19,7 +19,7 @@ public interface IComponentTemplatePinService
     Task<Result<ICollection<ComponentTemplatePin>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<ComponentTemplatePinDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<ComponentTemplatePin, bool>>? where = default, CancellationToken cancellationToken = default);
-    Task<Result> CreateAsync(ComponentTemplatePinCreateDto request, CancellationToken cancellationToken = default);
+    Task<Result<CreatedDto>> CreateAsync(ComponentTemplatePinCreateDto request, CancellationToken cancellationToken = default);
     Task<Result<ComponentTemplatePinUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(ComponentTemplatePinUpdateDto request, CancellationToken cancellationToken = default);
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default);

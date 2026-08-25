@@ -21,7 +21,7 @@ public interface IDeviceService
     Task<Result<ICollection<DeviceDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<DeviceDetailDto>>> GetDetailListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<Device, bool>>? where = default, CancellationToken cancellationToken = default);
-    Task<Result> CreateAsync(DeviceCreateDto request, CancellationToken cancellationToken = default);
+    Task<Result<CreatedDto>> CreateAsync(DeviceCreateDto request, CancellationToken cancellationToken = default);
     Task<Result<DeviceUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(DeviceUpdateDto request, CancellationToken cancellationToken = default);
     Task<Result<PaginationResponse<DeviceDetailDto>>> PaginationAsync(DynamicPaginationRequest request, CancellationToken cancellationToken = default);

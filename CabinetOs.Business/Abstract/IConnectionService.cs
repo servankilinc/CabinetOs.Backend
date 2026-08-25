@@ -19,7 +19,7 @@ public interface IConnectionService
     Task<Result<ICollection<Connection>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<ConnectionDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<Connection, bool>>? where = default, CancellationToken cancellationToken = default);
-    Task<Result> CreateAsync(ConnectionCreateDto request, CancellationToken cancellationToken = default);
+    Task<Result<CreatedDto>> CreateAsync(ConnectionCreateDto request, CancellationToken cancellationToken = default);
     Task<Result<ConnectionUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(ConnectionUpdateDto request, CancellationToken cancellationToken = default);
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default);

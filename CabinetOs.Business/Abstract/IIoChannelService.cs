@@ -19,7 +19,7 @@ public interface IIoChannelService
     Task<Result<ICollection<IoChannel>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<IoChannelDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<IoChannel, bool>>? where = default, CancellationToken cancellationToken = default);
-    Task<Result> CreateAsync(IoChannelCreateDto request, CancellationToken cancellationToken = default);
+    Task<Result<CreatedDto>> CreateAsync(IoChannelCreateDto request, CancellationToken cancellationToken = default);
     Task<Result<IoChannelUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(IoChannelUpdateDto request, CancellationToken cancellationToken = default);
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default);

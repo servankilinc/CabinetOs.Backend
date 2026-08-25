@@ -2,6 +2,7 @@ using AutoMapper;
 using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Core.Utils.Datatable;
+using CabinetOs.Core.Utils.DynamicQuery;
 using CabinetOs.Core.Utils.Pagination;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils.Validation;
@@ -93,18 +94,21 @@ public class ComponentTemplateService : IComponentTemplateService
 
     public async Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<ComponentTemplate, bool>>? where = default, CancellationToken cancellationToken = default)
     {
-        var list = await _unitOfWork.ComponentTemplates.GetAllAsync<SelectItemDto>(select: s => new SelectItemDto { Value = s.Id.ToString(), Text = s.Name }, where: where, cancellationToken: cancellationToken);
+        Expression<Func<ComponentTemplate, bool>> activeOnly = f => f.IsActive;
+        var list = await _unitOfWork.ComponentTemplates.GetAllAsync<SelectItemDto>(select: s => new SelectItemDto { Value = s.Id.ToString(), Text = s.Name }, where: activeOnly.AndAlso(where), cancellationToken: cancellationToken);
         var selectList = list ?? new List<SelectItemDto>();
         return Result<ICollection<SelectItemDto>>.Success(selectList);
     }
 
-    public async Task<Result> CreateAsync(ComponentTemplateCreateDto request, CancellationToken cancellationToken = default)
+    public async Task<Result<CreatedDto>> CreateAsync(ComponentTemplateCreateDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result.Validation(validationResult.Failures, description: $"Validation failed for ComponentTemplateCreateDto");
-        await _unitOfWork.ComponentTemplates.AddAndSaveAsync(_mapper.Map<ComponentTemplate>(request), cancellationToken);
-        return Result.Success();
+            return Result<CreatedDto>.Validation(validationResult.Failures, description: $"Validation failed for ComponentTemplateCreateDto");
+        var entity = _mapper.Map<ComponentTemplate>(request);
+        entity.IsActive = true;
+        var created = await _unitOfWork.ComponentTemplates.AddAndSaveAsync(entity, cancellationToken);
+        return Result<CreatedDto>.Success(new CreatedDto(created.Id));
     }
 
     public async Task<Result<ComponentTemplateUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default)

@@ -82,13 +82,13 @@ public class DiagramAnnotationService : IDiagramAnnotationService
         return Result<ICollection<SelectItemDto>>.Success(selectList);
     }
 
-    public async Task<Result> CreateAsync(DiagramAnnotationCreateDto request, CancellationToken cancellationToken = default)
+    public async Task<Result<CreatedDto>> CreateAsync(DiagramAnnotationCreateDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result.Validation(validationResult.Failures, description: $"Validation failed for DiagramAnnotationCreateDto");
-        await _unitOfWork.DiagramAnnotations.AddAndSaveAsync(_mapper.Map<DiagramAnnotation>(request), cancellationToken);
-        return Result.Success();
+            return Result<CreatedDto>.Validation(validationResult.Failures, description: $"Validation failed for DiagramAnnotationCreateDto");
+        var created = await _unitOfWork.DiagramAnnotations.AddAndSaveAsync(_mapper.Map<DiagramAnnotation>(request), cancellationToken);
+        return Result<CreatedDto>.Success(new CreatedDto(created.Id));
     }
 
     public async Task<Result<DiagramAnnotationUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default)

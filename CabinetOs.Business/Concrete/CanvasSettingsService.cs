@@ -81,13 +81,13 @@ public class CanvasSettingsService : ICanvasSettingsService
         return Result<ICollection<SelectItemDto>>.Success(selectList);
     }
 
-    public async Task<Result> CreateAsync(CanvasSettingsCreateDto request, CancellationToken cancellationToken = default)
+    public async Task<Result<CreatedDto>> CreateAsync(CanvasSettingsCreateDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result.Validation(validationResult.Failures, description: $"Validation failed for CanvasSettingsCreateDto");
-        await _unitOfWork.CanvasSettings.AddAndSaveAsync(_mapper.Map<CanvasSettings>(request), cancellationToken);
-        return Result.Success();
+            return Result<CreatedDto>.Validation(validationResult.Failures, description: $"Validation failed for CanvasSettingsCreateDto");
+        var created = await _unitOfWork.CanvasSettings.AddAndSaveAsync(_mapper.Map<CanvasSettings>(request), cancellationToken);
+        return Result<CreatedDto>.Success(new CreatedDto(created.Id));
     }
 
     public async Task<Result<CanvasSettingsUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default)

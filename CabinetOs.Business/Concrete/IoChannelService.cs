@@ -81,13 +81,13 @@ public class IoChannelService : IIoChannelService
         return Result<ICollection<SelectItemDto>>.Success(selectList);
     }
 
-    public async Task<Result> CreateAsync(IoChannelCreateDto request, CancellationToken cancellationToken = default)
+    public async Task<Result<CreatedDto>> CreateAsync(IoChannelCreateDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result.Validation(validationResult.Failures, description: $"Validation failed for IoChannelCreateDto");
-        await _unitOfWork.IoChannels.AddAndSaveAsync(_mapper.Map<IoChannel>(request), cancellationToken);
-        return Result.Success();
+            return Result<CreatedDto>.Validation(validationResult.Failures, description: $"Validation failed for IoChannelCreateDto");
+        var created = await _unitOfWork.IoChannels.AddAndSaveAsync(_mapper.Map<IoChannel>(request), cancellationToken);
+        return Result<CreatedDto>.Success(new CreatedDto(created.Id));
     }
 
     public async Task<Result<IoChannelUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default)

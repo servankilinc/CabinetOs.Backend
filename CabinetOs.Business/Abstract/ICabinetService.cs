@@ -21,7 +21,7 @@ public interface ICabinetService
     Task<Result<ICollection<CabinetBaseDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<CabinetDetailDto>>> GetDetailListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<Cabinet, bool>>? where = default, CancellationToken cancellationToken = default);
-    Task<Result> CreateAsync(CabinetCreateDto request, CancellationToken cancellationToken = default);
+    Task<Result<CreatedDto>> CreateAsync(CabinetCreateDto request, CancellationToken cancellationToken = default);
     Task<Result<CabinetUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(CabinetUpdateDto request, CancellationToken cancellationToken = default);
     Task<Result<PaginationResponse<CabinetDetailDto>>> PaginationAsync(DynamicPaginationRequest request, CancellationToken cancellationToken = default);

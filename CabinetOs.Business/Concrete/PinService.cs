@@ -98,13 +98,13 @@ public class PinService : IPinService
         return Result<ICollection<SelectItemDto>>.Success(selectList);
     }
 
-    public async Task<Result> CreateAsync(PinCreateDto request, CancellationToken cancellationToken = default)
+    public async Task<Result<CreatedDto>> CreateAsync(PinCreateDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result.Validation(validationResult.Failures, description: $"Validation failed for PinCreateDto");
-        await _unitOfWork.Pins.AddAndSaveAsync(_mapper.Map<Pin>(request), cancellationToken);
-        return Result.Success();
+            return Result<CreatedDto>.Validation(validationResult.Failures, description: $"Validation failed for PinCreateDto");
+        var created = await _unitOfWork.Pins.AddAndSaveAsync(_mapper.Map<Pin>(request), cancellationToken);
+        return Result<CreatedDto>.Success(new CreatedDto(created.Id));
     }
 
     public async Task<Result<PinUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default)

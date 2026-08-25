@@ -2,6 +2,7 @@ using AutoMapper;
 using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Core.Utils.Datatable;
+using CabinetOs.Core.Utils.DynamicQuery;
 using CabinetOs.Core.Utils.Pagination;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils.Validation;
@@ -93,18 +94,22 @@ public class DeviceService : IDeviceService
 
     public async Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<Device, bool>>? where = default, CancellationToken cancellationToken = default)
     {
-        var list = await _unitOfWork.Devices.GetAllAsync<SelectItemDto>(select: s => new SelectItemDto { Value = s.Id.ToString(), Text = s.Name }, where: where, cancellationToken: cancellationToken);
+        Expression<Func<Device, bool>> activeOnly = f => f.IsActive;
+        var list = await _unitOfWork.Devices.GetAllAsync<SelectItemDto>(select: s => new SelectItemDto { Value = s.Id.ToString(), Text = s.Name }, where: activeOnly.AndAlso(where), cancellationToken: cancellationToken);
         var selectList = list ?? new List<SelectItemDto>();
         return Result<ICollection<SelectItemDto>>.Success(selectList);
     }
 
-    public async Task<Result> CreateAsync(DeviceCreateDto request, CancellationToken cancellationToken = default)
+    public async Task<Result<CreatedDto>> CreateAsync(DeviceCreateDto request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result.Validation(validationResult.Failures, description: $"Validation failed for DeviceCreateDto");
-        await _unitOfWork.Devices.AddAndSaveAsync(_mapper.Map<Device>(request), cancellationToken);
-        return Result.Success();
+            return Result<CreatedDto>.Validation(validationResult.Failures, description: $"Validation failed for DeviceCreateDto");
+        var entity = _mapper.Map<Device>(request);
+        entity.IsActive = true;
+        entity.IsVisible = request.IsVisible ?? true;
+        var created = await _unitOfWork.Devices.AddAndSaveAsync(entity, cancellationToken);
+        return Result<CreatedDto>.Success(new CreatedDto(created.Id));
     }
 
     public async Task<Result<DeviceUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default)

@@ -19,7 +19,7 @@ public interface IDiagramAnnotationService
     Task<Result<ICollection<DiagramAnnotation>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<DiagramAnnotationDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<DiagramAnnotation, bool>>? where = default, CancellationToken cancellationToken = default);
-    Task<Result> CreateAsync(DiagramAnnotationCreateDto request, CancellationToken cancellationToken = default);
+    Task<Result<CreatedDto>> CreateAsync(DiagramAnnotationCreateDto request, CancellationToken cancellationToken = default);
     Task<Result<DiagramAnnotationUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(DiagramAnnotationUpdateDto request, CancellationToken cancellationToken = default);
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default);

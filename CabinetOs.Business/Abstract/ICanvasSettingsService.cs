@@ -19,7 +19,7 @@ public interface ICanvasSettingsService
     Task<Result<ICollection<CanvasSettings>>> GetListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<CanvasSettingsDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<CanvasSettings, bool>>? where = default, CancellationToken cancellationToken = default);
-    Task<Result> CreateAsync(CanvasSettingsCreateDto request, CancellationToken cancellationToken = default);
+    Task<Result<CreatedDto>> CreateAsync(CanvasSettingsCreateDto request, CancellationToken cancellationToken = default);
     Task<Result<CanvasSettingsUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(CanvasSettingsUpdateDto request, CancellationToken cancellationToken = default);
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default);

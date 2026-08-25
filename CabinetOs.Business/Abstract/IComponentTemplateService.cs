@@ -21,7 +21,7 @@ public interface IComponentTemplateService
     Task<Result<ICollection<ComponentTemplateBaseDto>>> GetBaseListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<ComponentTemplateDetailDto>>> GetComponentTemplateDetailDtoListAsync(DynamicRequest? request = default, CancellationToken cancellationToken = default);
     Task<Result<ICollection<SelectItemDto>>> SelectListAsync(Expression<Func<ComponentTemplate, bool>>? where = default, CancellationToken cancellationToken = default);
-    Task<Result> CreateAsync(ComponentTemplateCreateDto request, CancellationToken cancellationToken = default);
+    Task<Result<CreatedDto>> CreateAsync(ComponentTemplateCreateDto request, CancellationToken cancellationToken = default);
     Task<Result<ComponentTemplateUpdateDto>> GetUpdateModelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UpdateAsync(ComponentTemplateUpdateDto request, CancellationToken cancellationToken = default);
     Task<Result<PaginationResponse<ComponentTemplateDetailDto>>> PaginationAsync(DynamicPaginationRequest request, CancellationToken cancellationToken = default);
