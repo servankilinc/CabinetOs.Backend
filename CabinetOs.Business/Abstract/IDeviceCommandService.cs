@@ -12,6 +12,10 @@ namespace CabinetOs.Business.Abstract;
 
 public interface IDeviceCommandService
 {
+    Task<Result<DeviceCommandResultDto>> SendAsync(Guid deviceId, DeviceCommandSendRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Cihazin son komutları, yeniden eskiye.</summary>
+    Task<Result<ICollection<DeviceCommandResultDto>>> GetRecentAsync(Guid deviceId, int take, CancellationToken cancellationToken = default);
+
     Task<Result<DeviceCommand>> GetAsync(Expression<Func<DeviceCommand, bool>> where, CancellationToken cancellationToken = default);
     Task<Result<DeviceCommand>> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result<DeviceCommandDto>> GetBaseAsync(Guid id, CancellationToken cancellationToken = default);

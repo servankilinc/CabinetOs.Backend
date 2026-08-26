@@ -3,6 +3,7 @@ using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Core.Utils.Datatable;
 using CabinetOs.Core.Utils.Pagination;
+using CabinetOs.Core.Utils.HttpContextManager;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
@@ -15,16 +16,31 @@ using System.Linq.Expressions;
 
 namespace CabinetOs.Business.Concrete;
 
-public class DeviceCommandService : IDeviceCommandService
+// Kumanda akisi (S2) ayri dosyada: DeviceCommandService.Send.cs. Bu dosya uretilmis
+// CRUD iskeleti; ikisini karistirmamak icin sinif partial.
+public partial class DeviceCommandService : IDeviceCommandService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IMapper _mapper;
-    public DeviceCommandService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper)
+    private readonly IScadaCommandGateway _scadaCommandGateway;
+    private readonly IDiagramNotifier _notifier;
+    private readonly IHttpContextManager _httpContextManager;
+
+    public DeviceCommandService(
+        IUnitOfWork unitOfWork,
+        IValidationService validationService,
+        IMapper mapper,
+        IScadaCommandGateway scadaCommandGateway,
+        IDiagramNotifier notifier,
+        IHttpContextManager httpContextManager)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _mapper = mapper;
+        _scadaCommandGateway = scadaCommandGateway;
+        _notifier = notifier;
+        _httpContextManager = httpContextManager;
     }
 
     public async Task<Result<DeviceCommand>> GetAsync(Expression<Func<DeviceCommand, bool>> where, CancellationToken cancellationToken = default)
