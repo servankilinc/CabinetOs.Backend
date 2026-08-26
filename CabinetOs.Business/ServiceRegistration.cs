@@ -33,6 +33,11 @@ namespace CabinetOs.Business
             services.AddScoped<IDeviceStatusService, DeviceStatusService>();
             services.AddScoped<IDeviceTypeService, DeviceTypeService>();
             #endregion
+
+            services.AddScoped<IDiagramService, DiagramService>();
+            services.AddScoped<IScadaService, ScadaService>();
+            services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();
+
             return services;
         }
     }
