@@ -448,19 +448,13 @@ public class DiagramService : IDiagramService
         {
             // ---- FAZ 1: SILMELER ----
             // Silmeler ve olusturmalar AYRI SaveChanges'lerde akitilir. Sebep filtreli
-            // unique index'ler: IX_Connection_SourcePinId_TargetPinId ve IX_Pin_DeviceId_Name
-            // "WHERE IsDeleted = 0" ile calisir. Kullanici bir kabloyu silip AYNI iki pin
-            // arasina yenisini cizdiginde (cizdi-vazgecti-yeniden cizdi, editorde siradan
-            // bir dizi), silme bir UPDATE, olusturma bir INSERT'tur; tek batch'te EF'in
-            // sirasi garanti degildir ve INSERT once giderse index ihlali 500 doner.
+            // unique index: IX_Connection_SourcePinId_TargetPinId "WHERE IsDeleted = 0"
+            // ile calisir. Kullanici bir kabloyu silip AYNI iki pin arasina yenisini
+            // cizdiginde (cizdi-vazgecti-yeniden cizdi, editorde siradan bir dizi),
+            // silme bir UPDATE, olusturma bir INSERT'tur; tek batch'te EF'in sirasi
+            // garanti degildir ve INSERT once giderse index ihlali 500 doner.
             ApplyDeletions(request, context);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            // ---- FAZ 1b: CEKISMELI PIN ADLARINI SAHNELE ----
-            // Yalnizca bir pinin birakacagi adi ayni gonderide baskasi aliyorsa
-            // calisir (ad takasi / zincir). Ayrintili gerekce: StagePinRenames.
-            if (StagePinRenames(request, context))
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // ---- FAZ 2: OLUSTURMALAR + GUNCELLEMELER ----
             var created = ApplyCreations(cabinetId, request, context);
@@ -475,7 +469,6 @@ public class DiagramService : IDiagramService
             return Result<DiagramSaveResponse>.Success(new DiagramSaveResponse
             {
                 Devices = ToIdMap(created.Devices, d => d.Id),
-                Pins = ToIdMap(created.Pins, p => p.Id),
                 Connections = ToIdMap(created.Connections, c => c.Id),
                 Annotations = ToIdMap(created.Annotations, a => a.Id),
                 InstantiatedPinCount = created.InstantiatedPinCount,
@@ -535,29 +528,24 @@ public class DiagramService : IDiagramService
             activeTemplateIds = rows.ToHashSet();
         }
 
-        // ---- Sablon pinleri (yalnizca InstantiatePins isteyen sablonlar icin)
-        var instantiateTemplateIds = request.Devices.Created
-            .Where(d => d.InstantiatePins)
-            .Select(d => d.ComponentTemplateId)
-            .Distinct().ToList();
-
+        // ---- Sablon pinleri: yeni cihazlarin pinleri her zaman bunlardan uretilir.
+        // Pini olmayan sablon burada hic anahtar acmaz ve cihaz pinsiz dogar.
         var templatePins = new Dictionary<Guid, List<ComponentTemplatePin>>();
-        if (instantiateTemplateIds.Count > 0)
+        if (templateIds.Count > 0)
         {
             // tracking: false — bunlar yalnizca KOPYALAMA kaynagi; takip edilirlerse
             // degistirilmedikleri halde change tracker'i sisirirler.
             var rows = await _unitOfWork.ComponentTemplatePins.GetAllAsync(
-                where: p => instantiateTemplateIds.Contains(p.ComponentTemplateId),
+                where: p => templateIds.Contains(p.ComponentTemplateId),
                 orderBy: q => q.OrderBy(p => p.Name),
                 tracking: false,
                 cancellationToken: cancellationToken) ?? [];
             templatePins = rows.GroupBy(p => p.ComponentTemplateId).ToDictionary(g => g.Key, g => g.ToList());
         }
 
-        // ---- Cihazlar: guncellenen, silinen ve pin eklenecek olanlar
+        // ---- Cihazlar: guncellenenler ve silinenler
         var deviceIds = request.Devices.Updated.Select(d => d.Id)
             .Concat(request.Devices.Deleted)
-            .Concat(request.Pins.Created.Where(p => p.DeviceId.HasValue).Select(p => p.DeviceId!.Value))
             .Distinct().ToList();
 
         var devices = new Dictionary<Guid, Device>();
@@ -569,12 +557,10 @@ public class DiagramService : IDiagramService
             devices = rows.ToDictionary(d => d.Id);
         }
 
-        // ---- Pinler: dogrudan anilanlar + silinen cihazlarin pinleri (cascade icin)
+        // ---- Pinler: yeni kablolarin uclari + silinen cihazlarin pinleri (cascade icin)
         var deletedDeviceIds = request.Devices.Deleted;
-        var referencedPinIds = request.Pins.Updated.Select(p => p.Id)
-            .Concat(request.Pins.Deleted)
-            .Concat(request.Connections.Created.SelectMany(c => new[] { c.SourcePinId, c.TargetPinId })
-                .Where(id => id.HasValue).Select(id => id!.Value))
+        var referencedPinIds = request.Connections.Created
+            .SelectMany(c => new[] { c.SourcePinId, c.TargetPinId })
             .Distinct().ToList();
 
         var pins = new Dictionary<Guid, Pin>();
@@ -587,14 +573,9 @@ public class DiagramService : IDiagramService
             pins = rows.ToDictionary(p => p.Id);
         }
 
-        // Bilinmeyen Id'ler buraya girmez; onlari ValidateReferences ayrica raporlar.
-        // Boylece uygulama adimi sozluklerde her zaman var olan anahtarlarla calisir.
-        var pinsBeingRemoved = new HashSet<Guid>(request.Pins.Deleted.Where(pins.ContainsKey));
-        foreach (var pin in pins.Values)
-        {
-            if (deletedDeviceIds.Contains(pin.DeviceId))
-                pinsBeingRemoved.Add(pin.Id);
-        }
+        // Pin yalnizca cihaziyla birlikte kalkar — cihaz uzerinde tekil pin silme yok.
+        var pinsBeingRemoved = new HashSet<Guid>(
+            pins.Values.Where(p => deletedDeviceIds.Contains(p.DeviceId)).Select(p => p.Id));
 
         // ---- Silinen pinlerin kablolari (cascade)
         var cascadeConnections = new List<Connection>();
@@ -635,17 +616,13 @@ public class DiagramService : IDiagramService
         }
 
         // ---- Halihazirda duran pin ciftleri (yeni kablo cakismasi icin)
-        var endpointIds = request.Connections.Created
-            .SelectMany(c => new[] { c.SourcePinId, c.TargetPinId })
-            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
-
-        var existingPairs = new HashSet<(string, string)>();
-        if (endpointIds.Count > 0)
+        var existingPairs = new HashSet<(Guid, Guid)>();
+        if (referencedPinIds.Count > 0)
         {
             var rows = await _unitOfWork.Connections.GetAllAsync(
                 select: c => new PinPairRow(c.Id, c.SourcePinId, c.TargetPinId),
                 where: c => c.CabinetId == cabinetId
-                         && (endpointIds.Contains(c.SourcePinId) || endpointIds.Contains(c.TargetPinId)),
+                         && (referencedPinIds.Contains(c.SourcePinId) || referencedPinIds.Contains(c.TargetPinId)),
                 cancellationToken: cancellationToken) ?? [];
 
             // Bu gonderide kalkacak kablolar cakisma sayilmaz: kullanicinin bir kabloyu
@@ -656,41 +633,7 @@ public class DiagramService : IDiagramService
             foreach (var row in rows)
             {
                 if (removedConnectionIds.Contains(row.Id)) continue;
-                existingPairs.Add(PairKey(EndpointKey(row.SourcePinId, null), EndpointKey(row.TargetPinId, null)));
-            }
-        }
-
-        // ---- Etkilenen cihazlarin CANLI pin adlari
-        // IX_Pin_DeviceId_Name (unique, WHERE IsDeleted = 0) ihlali 500 doner; bir pini
-        // var olan bir adla yeniden adlandirmak editorde tek tusluk bir islem oldugu
-        // icin bunu 400'e cevirmek zorundayiz.
-        var nameCheckDeviceIds = request.Pins.Created
-            .Where(p => p.DeviceId.HasValue).Select(p => p.DeviceId!.Value)
-            .Concat(request.Pins.Updated
-                .Select(u => pins.TryGetValue(u.Id, out var p) ? p.DeviceId : Guid.Empty)
-                .Where(id => id != Guid.Empty))
-            .Distinct().ToList();
-
-        var livePinNames = new Dictionary<Guid, HashSet<string>>();
-        if (nameCheckDeviceIds.Count > 0)
-        {
-            var rows = await _unitOfWork.Pins.GetAllAsync(
-                select: p => new PinNameRow(p.Id, p.DeviceId, p.Name),
-                where: p => nameCheckDeviceIds.Contains(p.DeviceId),
-                cancellationToken: cancellationToken) ?? [];
-
-            foreach (var row in rows)
-            {
-                // Kalkan pinin adi serbest kalir.
-                if (pinsBeingRemoved.Contains(row.Id)) continue;
-                if (!livePinNames.TryGetValue(row.DeviceId, out var names))
-                {
-                    // OrdinalIgnoreCase: SQL Server'in varsayilan collation'i buyuk/kucuk
-                    // harf duyarsizdir, yani "in1" ile "IN1" index'te CAKISIR.
-                    names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    livePinNames[row.DeviceId] = names;
-                }
-                names.Add(row.Name);
+                existingPairs.Add(PairKey(row.SourcePinId, row.TargetPinId));
             }
         }
 
@@ -709,24 +652,6 @@ public class DiagramService : IDiagramService
             deviceExternalCodes = rows.ToDictionary(r => r.Id, r => r.ExternalCode);
         }
 
-        // ---- Pine baglanacak IO kanallari
-        // Iki ayri sorun icin: (1) olmayan bir Id FK ihlaliyle 500 dondururdu,
-        // (2) BASKA bir kabinin kanali sessizce baglanabilirdi ve o kabinin telemetrisi
-        // bu diyagramda gorunurdu. Sorgu kanali cihazi uzerinden kabine baglar.
-        var ioChannelIds = request.Pins.Created.Where(p => p.IoChannelId.HasValue).Select(p => p.IoChannelId!.Value)
-            .Concat(request.Pins.Updated.Where(p => p.IoChannelId.HasValue).Select(p => p.IoChannelId!.Value))
-            .Distinct().ToList();
-
-        var validIoChannelIds = new HashSet<Guid>();
-        if (ioChannelIds.Count > 0)
-        {
-            var rows = await _unitOfWork.IoChannels.GetAllAsync(
-                select: c => c.Id,
-                where: c => ioChannelIds.Contains(c.Id) && c.Device!.CabinetId == cabinetId,
-                cancellationToken: cancellationToken) ?? [];
-            validIoChannelIds = rows.ToHashSet();
-        }
-
         return new SaveContext
         {
             ActiveTemplateIds = activeTemplateIds,
@@ -738,9 +663,7 @@ public class DiagramService : IDiagramService
             PinsBeingRemoved = pinsBeingRemoved,
             CascadeConnections = cascadeConnections,
             ExistingPairs = existingPairs,
-            LivePinNames = livePinNames,
-            DeviceExternalCodes = deviceExternalCodes,
-            ValidIoChannelIds = validIoChannelIds
+            DeviceExternalCodes = deviceExternalCodes
         };
     }
 
@@ -755,103 +678,47 @@ public class DiagramService : IDiagramService
     /// </summary>
     private static Dictionary<string, string[]> ValidateReferences(DiagramSaveRequest request, SaveContext context)
     {
-        var errors = new DraftErrorBag();
+        var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
         var deletedDeviceIds = new HashSet<Guid>(request.Devices.Deleted);
-        var createdDeviceTempIds = request.Devices.Created.Select(d => d.TempId).ToHashSet(StringComparer.Ordinal);
-        var createdPinsByTempId = request.Pins.Created
-            .GroupBy(p => p.TempId, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var cascadeConnectionIds = context.CascadeConnections.Select(c => c.Id).ToHashSet();
 
         // ---- Cihazlar
         for (int i = 0; i < request.Devices.Created.Count; i++)
         {
             if (!context.ActiveTemplateIds.Contains(request.Devices.Created[i].ComponentTemplateId))
-                errors.Add($"Devices.Created[{i}].ComponentTemplateId", "Sablon bulunamadi veya pasif durumda");
+                AddError(errors, $"Devices.Created[{i}].ComponentTemplateId", "Sablon bulunamadi veya pasif durumda");
         }
         for (int i = 0; i < request.Devices.Updated.Count; i++)
         {
             if (!context.Devices.ContainsKey(request.Devices.Updated[i].Id))
-                errors.Add($"Devices.Updated[{i}].Id", "Cihaz bu kabinde bulunamadi");
+                AddError(errors, $"Devices.Updated[{i}].Id", "Cihaz bu kabinde bulunamadi");
         }
         for (int i = 0; i < request.Devices.Deleted.Count; i++)
         {
             if (!context.Devices.ContainsKey(request.Devices.Deleted[i]))
-                errors.Add($"Devices.Deleted[{i}]", "Cihaz bu kabinde bulunamadi");
+                AddError(errors, $"Devices.Deleted[{i}]", "Cihaz bu kabinde bulunamadi");
         }
 
-        // ---- Pinler
-        for (int i = 0; i < request.Pins.Created.Count; i++)
-        {
-            var draft = request.Pins.Created[i];
-            if (draft.DeviceId.HasValue)
-            {
-                if (!context.Devices.ContainsKey(draft.DeviceId.Value))
-                    errors.Add($"Pins.Created[{i}].DeviceId", "Cihaz bu kabinde bulunamadi");
-                else if (deletedDeviceIds.Contains(draft.DeviceId.Value))
-                    errors.Add($"Pins.Created[{i}].DeviceId", "Ayni gonderide silinen bir cihaza pin eklenemez");
-            }
-            else if (!createdDeviceTempIds.Contains(draft.DeviceTempId!))
-            {
-                errors.Add($"Pins.Created[{i}].DeviceTempId", "Gecici cihaz kimligi bu gonderide bulunamadi");
-            }
-        }
-        for (int i = 0; i < request.Pins.Updated.Count; i++)
-        {
-            var id = request.Pins.Updated[i].Id;
-            if (!context.Pins.ContainsKey(id))
-                errors.Add($"Pins.Updated[{i}].Id", "Pin bu kabinde bulunamadi");
-            else if (context.PinsBeingRemoved.Contains(id))
-                errors.Add($"Pins.Updated[{i}].Id", "Ayni gonderide silinen bir pin guncellenemez");
-        }
-        for (int i = 0; i < request.Pins.Deleted.Count; i++)
-        {
-            if (!context.Pins.ContainsKey(request.Pins.Deleted[i]))
-                errors.Add($"Pins.Deleted[{i}]", "Pin bu kabinde bulunamadi");
-        }
-
-        for (int i = 0; i < request.Pins.Created.Count; i++)
-        {
-            var id = request.Pins.Created[i].IoChannelId;
-            if (id.HasValue && !context.ValidIoChannelIds.Contains(id.Value))
-                errors.Add($"Pins.Created[{i}].IoChannelId", "IO kanali bu kabinde bulunamadi");
-        }
-        for (int i = 0; i < request.Pins.Updated.Count; i++)
-        {
-            var id = request.Pins.Updated[i].IoChannelId;
-            if (id.HasValue && !context.ValidIoChannelIds.Contains(id.Value))
-                errors.Add($"Pins.Updated[{i}].IoChannelId", "IO kanali bu kabinde bulunamadi");
-        }
-
-        ValidatePinNames(request, context, errors);
         ValidateDeviceExternalCodes(request, context, deletedDeviceIds, errors);
 
         // ---- Kablolar
-        var pairsInRequest = new HashSet<(string, string)>();
+        var pairsInRequest = new HashSet<(Guid, Guid)>();
         for (int i = 0; i < request.Connections.Created.Count; i++)
         {
             var draft = request.Connections.Created[i];
-            var source = ResolveEndpoint(draft.SourcePinId, draft.SourcePinTempId, context, createdPinsByTempId,
-                errors, $"Connections.Created[{i}].SourcePin");
-            var target = ResolveEndpoint(draft.TargetPinId, draft.TargetPinTempId, context, createdPinsByTempId,
-                errors, $"Connections.Created[{i}].TargetPin");
+            var source = ResolveEndpoint(draft.SourcePinId, context, errors, $"Connections.Created[{i}].SourcePinId");
+            var target = ResolveEndpoint(draft.TargetPinId, context, errors, $"Connections.Created[{i}].TargetPinId");
 
             if (source == null || target == null) continue;
 
-            if (source.Key == target.Key)
-            {
-                errors.Add($"Connections.Created[{i}].TargetPin", "Bir pin kendisine baglanamaz");
-                continue;
-            }
-
-            var pair = PairKey(source.Key, target.Key);
+            var pair = PairKey(draft.SourcePinId, draft.TargetPinId);
             // Cift, YONSUZ karsilastirilir. DB'deki unique index (SourcePinId, TargetPinId)
             // sirali oldugu icin ters cizilmis ayni kabloyu YAKALAMAZ; ConnectionMode.Loose
             // ile "kaynak"/"hedef" zaten keyfi oldugundan burada daha katiyiz.
             if (!pairsInRequest.Add(pair) || context.ExistingPairs.Contains(pair))
             {
-                errors.Add($"Connections.Created[{i}]", "Bu iki pin arasinda zaten bir kablo var");
+                AddError(errors, $"Connections.Created[{i}]", "Bu iki pin arasinda zaten bir kablo var");
                 continue;
             }
 
@@ -861,96 +728,46 @@ public class DiagramService : IDiagramService
             if (source.VoltageLevel.HasValue && target.VoltageLevel.HasValue
                 && source.VoltageLevel.Value != target.VoltageLevel.Value)
             {
-                errors.Add($"Connections.Created[{i}]", "Farkli gerilim seviyesindeki pinler baglanamaz");
+                AddError(errors, $"Connections.Created[{i}]", "Farkli gerilim seviyesindeki pinler baglanamaz");
             }
         }
         for (int i = 0; i < request.Connections.Updated.Count; i++)
         {
             var id = request.Connections.Updated[i].Id;
             if (!context.Connections.ContainsKey(id))
-                errors.Add($"Connections.Updated[{i}].Id", "Kablo bu kabinde bulunamadi");
+                AddError(errors, $"Connections.Updated[{i}].Id", "Kablo bu kabinde bulunamadi");
             else if (cascadeConnectionIds.Contains(id))
-                errors.Add($"Connections.Updated[{i}].Id", "Bu kablo, pini silindigi icin kaldiriliyor; ayni gonderide guncellenemez");
+                AddError(errors, $"Connections.Updated[{i}].Id", "Bu kablo, pini silindigi icin kaldiriliyor; ayni gonderide guncellenemez");
         }
         for (int i = 0; i < request.Connections.Deleted.Count; i++)
         {
             if (!context.Connections.ContainsKey(request.Connections.Deleted[i]))
-                errors.Add($"Connections.Deleted[{i}]", "Kablo bu kabinde bulunamadi");
+                AddError(errors, $"Connections.Deleted[{i}]", "Kablo bu kabinde bulunamadi");
         }
 
         // ---- Notlar
         for (int i = 0; i < request.Annotations.Updated.Count; i++)
         {
             if (!context.Annotations.ContainsKey(request.Annotations.Updated[i].Id))
-                errors.Add($"Annotations.Updated[{i}].Id", "Not bu kabinde bulunamadi");
+                AddError(errors, $"Annotations.Updated[{i}].Id", "Not bu kabinde bulunamadi");
         }
         for (int i = 0; i < request.Annotations.Deleted.Count; i++)
         {
             if (!context.Annotations.ContainsKey(request.Annotations.Deleted[i]))
-                errors.Add($"Annotations.Deleted[{i}]", "Not bu kabinde bulunamadi");
+                AddError(errors, $"Annotations.Deleted[{i}]", "Not bu kabinde bulunamadi");
         }
 
-        return errors.ToDictionary();
+        return errors.ToDictionary(e => e.Key, e => e.Value.ToArray(), StringComparer.Ordinal);
     }
 
     /// <summary>
-    /// Pin adlarinin cihaz icinde benzersizligi — <c>IX_Pin_DeviceId_Name</c>'in
-    /// bellekteki karsiligi. Karsilastirma buyuk/kucuk harf DUYARSIZ, cunku index
-    /// SQL Server'in varsayilan collation'i altinda oyle davranir.
+    /// Ayni alanda birden fazla hata birikebilsin diye.
+    /// <c>ProblemDetails.errors</c> sozlugunun sekli: alan -> mesaj dizisi.
     /// </summary>
-    private static void ValidatePinNames(DiagramSaveRequest request, SaveContext context, DraftErrorBag errors)
+    private static void AddError(Dictionary<string, List<string>> errors, string key, string message)
     {
-        var namesByDevice = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-
-        HashSet<string> NamesFor(string deviceKey)
-        {
-            if (!namesByDevice.TryGetValue(deviceKey, out var names))
-            {
-                names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                namesByDevice[deviceKey] = names;
-            }
-            return names;
-        }
-
-        foreach (var (deviceId, names) in context.LivePinNames)
-            NamesFor(EndpointKey(deviceId, null)).UnionWith(names);
-
-        // Yeni cihazin sablondan uretilecek pinleri de bu kumeye girer; sablon
-        // pinlerinin kendi aralarindaki benzersizligini IX_ComponentTemplatePin zaten
-        // garanti eder, ama ayni gonderide o cihaza ELLE eklenen bir pin cakisabilir.
-        foreach (var draft in request.Devices.Created)
-        {
-            if (!draft.InstantiatePins) continue;
-            if (context.TemplatePins.TryGetValue(draft.ComponentTemplateId, out var templatePins))
-                NamesFor(EndpointKey(null, draft.TempId)).UnionWith(templatePins.Select(t => t.Name));
-        }
-
-        // Yeniden adlandirmalar IKI ADIMDA islenir: once TUM eski adlar dusurulur,
-        // sonra yenileri eklenir. Tek adimda yapilsaydi iki pinin adini takas etmek
-        // yanlislikla cakisma sayilirdi.
-        foreach (var draft in request.Pins.Updated)
-        {
-            if (context.Pins.TryGetValue(draft.Id, out var pin))
-                NamesFor(EndpointKey(pin.DeviceId, null)).Remove(pin.Name);
-        }
-        for (int i = 0; i < request.Pins.Updated.Count; i++)
-        {
-            var draft = request.Pins.Updated[i];
-            if (!context.Pins.TryGetValue(draft.Id, out var pin)) continue;
-            if (!NamesFor(EndpointKey(pin.DeviceId, null)).Add(draft.Name))
-                errors.Add($"Pins.Updated[{i}].Name", "Bu cihazda ayni adli baska bir pin var");
-        }
-
-        for (int i = 0; i < request.Pins.Created.Count; i++)
-        {
-            var draft = request.Pins.Created[i];
-            var deviceKey = draft.DeviceId.HasValue
-                ? EndpointKey(draft.DeviceId.Value, null)
-                : EndpointKey(null, draft.DeviceTempId);
-
-            if (!NamesFor(deviceKey).Add(draft.Name))
-                errors.Add($"Pins.Created[{i}].Name", "Bu cihazda ayni adli baska bir pin var");
-        }
+        if (!errors.TryGetValue(key, out var messages)) errors[key] = messages = [];
+        messages.Add(message);
     }
 
     /// <summary>
@@ -962,7 +779,7 @@ public class DiagramService : IDiagramService
         DiagramSaveRequest request,
         SaveContext context,
         HashSet<Guid> deletedDeviceIds,
-        DraftErrorBag errors)
+        Dictionary<string, List<string>> errors)
     {
         var updatedDeviceIds = request.Devices.Updated.Select(d => d.Id).ToHashSet();
         var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -980,63 +797,39 @@ public class DiagramService : IDiagramService
             var code = request.Devices.Updated[i].ExternalCode;
             if (string.IsNullOrWhiteSpace(code)) continue;
             if (!codes.Add(code))
-                errors.Add($"Devices.Updated[{i}].ExternalCode", "Bu kabinde ayni dis koda sahip baska bir cihaz var");
+                AddError(errors, $"Devices.Updated[{i}].ExternalCode", "Bu kabinde ayni dis koda sahip baska bir cihaz var");
         }
         for (int i = 0; i < request.Devices.Created.Count; i++)
         {
             var code = request.Devices.Created[i].ExternalCode;
             if (string.IsNullOrWhiteSpace(code)) continue;
             if (!codes.Add(code))
-                errors.Add($"Devices.Created[{i}].ExternalCode", "Bu kabinde ayni dis koda sahip baska bir cihaz var");
+                AddError(errors, $"Devices.Created[{i}].ExternalCode", "Bu kabinde ayni dis koda sahip baska bir cihaz var");
         }
     }
 
     /// <summary>
-    /// Bir kablo ucunu cozer: ya kabindeki kalici bir pin ya da ayni gonderide
-    /// olusturulan bir pin. Cozulemezse hatayi yazar ve null doner.
+    /// Bir kablo ucunu cozer. Uc her zaman KALICI bir pindir; cozulemezse hatayi
+    /// yazar ve null doner. Doner deger gerilim karsilastirmasi icin kullanilir.
     /// </summary>
-    private static ResolvedEndpoint? ResolveEndpoint(
-        Guid? pinId,
-        string? pinTempId,
-        SaveContext context,
-        Dictionary<string, PinCreateDraft> createdPinsByTempId,
-        DraftErrorBag errors,
-        string errorKey)
+    private static Pin? ResolveEndpoint(Guid pinId, SaveContext context, Dictionary<string, List<string>> errors, string errorKey)
     {
-        if (pinId.HasValue)
+        if (!context.Pins.TryGetValue(pinId, out var pin))
         {
-            if (!context.Pins.TryGetValue(pinId.Value, out var pin))
-            {
-                errors.Add($"{errorKey}Id", "Pin bu kabinde bulunamadi");
-                return null;
-            }
-            if (context.PinsBeingRemoved.Contains(pinId.Value))
-            {
-                errors.Add($"{errorKey}Id", "Ayni gonderide silinen bir pine kablo cizilemez");
-                return null;
-            }
-            return new ResolvedEndpoint(EndpointKey(pinId.Value, null), pin.VoltageLevel);
-        }
-
-        if (!createdPinsByTempId.TryGetValue(pinTempId!, out var draft))
-        {
-            errors.Add($"{errorKey}TempId", "Gecici pin kimligi bu gonderide bulunamadi");
+            AddError(errors, errorKey, "Pin bu kabinde bulunamadi");
             return null;
         }
-        return new ResolvedEndpoint(EndpointKey(null, pinTempId), draft.VoltageLevel);
+        if (context.PinsBeingRemoved.Contains(pinId))
+        {
+            AddError(errors, errorKey, "Cihazi ayni gonderide silinen bir pine kablo cizilemez");
+            return null;
+        }
+        return pin;
     }
 
-    /// <summary>
-    /// Kalici Id ve gecici kimligi TEK bir string uzayinda birlestirir; boylece
-    /// "kalici pin ile yeni pin" gibi karisik ciftler de tek bir kumede
-    /// karsilastirilabilir.
-    /// </summary>
-    private static string EndpointKey(Guid? id, string? tempId)
-        => id.HasValue ? $"id:{id.Value}" : $"tmp:{tempId}";
-
     /// <summary>Ciftin YONSUZ anahtari: (a,b) ile (b,a) ayni kabloyu gosterir.</summary>
-    private static (string, string) PairKey(string first, string second)
-        => string.CompareOrdinal(first, second) <= 0 ? (first, second) : (second, first);
+    private static (Guid, Guid) PairKey(Guid first, Guid second)
+        => first.CompareTo(second) <= 0 ? (first, second) : (second, first);
 
     // ==================== UYGULAMA ====================
 
@@ -1075,66 +868,17 @@ public class DiagramService : IDiagramService
     }
 
     /// <summary>
-    /// Pin yeniden adlandirmalarini, gerekiyorsa once GECICI bir ada tasir.
-    /// Geriye "ayri bir SaveChanges gerekiyor mu" bilgisini doner.
-    ///
-    /// <b>Neden gerekli.</b> <c>IX_Pin_DeviceId_Name</c> unique index'i STATEMENT
-    /// bazinda dogrulanir. Iki pinin adini TAKAS etmek — ya da A→B, B→C zinciri
-    /// kurmak — tek batch'te imkansizdir: EF iki ayri UPDATE gonderir ve aradaki
-    /// anlik durumda ayni ad iki satirda bulunur. Ustelik hangi UPDATE'in once
-    /// gidecegi garanti degildir, yani hata KARARSIZ olur: ayni islem bazen calisir,
-    /// bazen 500 doner ve kullanicinin tum yigini geri alinir.
-    ///
-    /// Bellekteki dogrulama (bkz. <see cref="ValidatePinNames"/>) takasa dogru
-    /// olarak izin verir; burasi o iznin DB'de de gecerli olmasini saglar.
-    /// </summary>
-    private static bool StagePinRenames(DiagramSaveRequest request, SaveContext context)
-    {
-        static string Key(Guid deviceId, string name) => $"{deviceId}|{name.ToUpperInvariant()}";
-
-        var freedNames = new HashSet<string>(StringComparer.Ordinal);
-        var renamedPins = new List<Pin>();
-
-        foreach (var draft in request.Pins.Updated)
-        {
-            if (!context.Pins.TryGetValue(draft.Id, out var pin)) continue;
-            if (string.Equals(pin.Name, draft.Name, StringComparison.OrdinalIgnoreCase)) continue;
-            freedNames.Add(Key(pin.DeviceId, pin.Name));
-            renamedPins.Add(pin);
-        }
-
-        if (renamedPins.Count == 0) return false;
-
-        // Serbest kalacak bir adi AYNI gonderide baskasi aliyor mu? Almiyorsa
-        // sahneleme gereksizdir ve fazladan bir gidis-donus etmeyiz.
-        var contested = request.Pins.Updated.Any(d =>
-                context.Pins.TryGetValue(d.Id, out var pin) && freedNames.Contains(Key(pin.DeviceId, d.Name)))
-            || request.Pins.Created.Any(d =>
-                d.DeviceId.HasValue && freedNames.Contains(Key(d.DeviceId.Value, d.Name)));
-
-        if (!contested) return false;
-
-        // Guid tabanli gecici ad: kendisi de cakisamaz. Bu deger asla commit
-        // edilmez — nihai adlar ayni transaction icinde hemen ustune yazilir.
-        foreach (var pin in renamedPins)
-            pin.Name = $"~stg~{Guid.NewGuid():N}";
-
-        return true;
-    }
-
-    /// <summary>
     /// Olusturmalar.
     ///
-    /// Yeni satirlar birbirini FK SKALERIYLE DEGIL NAVIGASYONLA gosterir
-    /// (<c>pin.Device = device</c>): Id'ler <c>SaveChanges</c>'e kadar kesinlesmedigi
-    /// icin skaler atamak imkansiz olurdu. EF, ekleme sirasini ve FK degerlerini
-    /// bu iliskilerden kendisi cozer.
+    /// Cihazla birlikte dogan pin ve kanallar birbirini FK SKALERIYLE DEGIL
+    /// NAVIGASYONLA gosterir (<c>pin.Device = device</c>): Id'ler
+    /// <c>SaveChanges</c>'e kadar kesinlesmedigi icin skaler atamak imkansiz
+    /// olurdu. EF, ekleme sirasini ve FK degerlerini bu iliskilerden kendisi cozer.
+    /// Kablo uclari ise HER ZAMAN kalici pinlerdir, dolayisiyla skaler atanir.
     /// </summary>
     private CreatedEntities ApplyCreations(Guid cabinetId, DiagramSaveRequest request, SaveContext context)
     {
         var created = new CreatedEntities();
-        var deviceByTempId = new Dictionary<string, Device>(StringComparer.Ordinal);
-        var pinByTempId = new Dictionary<string, Pin>(StringComparer.Ordinal);
 
         foreach (var draft in request.Devices.Created)
         {
@@ -1155,10 +899,10 @@ public class DiagramService : IDiagramService
                 IsActive = true
             };
             _unitOfWork.Devices.Add(device);
-            deviceByTempId[draft.TempId] = device;
             created.Devices.Add((draft.TempId, device));
 
-            if (!draft.InstantiatePins) continue;
+            // Pini olmayan sablon: cihaz pinsiz dogar. Bu bir SECIM degil, sablonun
+            // sonucu — pin yazarligi sablon ekranina aittir.
             if (!context.TemplatePins.TryGetValue(draft.ComponentTemplateId, out var templatePins)) continue;
 
             // Ayni cihazda ayni kanal numarasi TEK bir IoChannel'dir. Sablonda iki
@@ -1215,34 +959,13 @@ public class DiagramService : IDiagramService
             }
         }
 
-        foreach (var draft in request.Pins.Created)
-        {
-            var pin = new Pin
-            {
-                Name = draft.Name,
-                RelativeX = draft.RelativeX,
-                RelativeY = draft.RelativeY,
-                Side = draft.Side,
-                Function = draft.Function,
-                Direction = draft.Direction,
-                VoltageLevel = draft.VoltageLevel,
-                ChannelNumber = draft.ChannelNumber,
-                IoChannelId = draft.IoChannelId
-            };
-
-            if (draft.DeviceId.HasValue) pin.DeviceId = draft.DeviceId.Value;
-            else pin.Device = deviceByTempId[draft.DeviceTempId!];
-
-            _unitOfWork.Pins.Add(pin);
-            pinByTempId[draft.TempId] = pin;
-            created.Pins.Add((draft.TempId, pin));
-        }
-
         foreach (var draft in request.Connections.Created)
         {
             var connection = new Connection
             {
                 CabinetId = cabinetId,
+                SourcePinId = draft.SourcePinId,
+                TargetPinId = draft.TargetPinId,
                 Label = draft.Label,
                 WireType = draft.WireType,
                 Color = draft.Color,
@@ -1252,12 +975,6 @@ public class DiagramService : IDiagramService
                 WaypointsJson = DiagramWaypoints.Serialize(draft.Waypoints),
                 ZIndex = draft.ZIndex
             };
-
-            if (draft.SourcePinId.HasValue) connection.SourcePinId = draft.SourcePinId.Value;
-            else connection.SourcePin = pinByTempId[draft.SourcePinTempId!];
-
-            if (draft.TargetPinId.HasValue) connection.TargetPinId = draft.TargetPinId.Value;
-            else connection.TargetPin = pinByTempId[draft.TargetPinTempId!];
 
             _unitOfWork.Connections.Add(connection);
             created.Connections.Add((draft.TempId, connection));
@@ -1314,20 +1031,6 @@ public class DiagramService : IDiagramService
             // DeviceStatusId / LastSeen / IpAddress / MacAddress DOKUNULMAZ.
         }
 
-        foreach (var draft in request.Pins.Updated)
-        {
-            var pin = context.Pins[draft.Id];
-            pin.Name = draft.Name;
-            pin.RelativeX = draft.RelativeX;
-            pin.RelativeY = draft.RelativeY;
-            pin.Side = draft.Side;
-            pin.Function = draft.Function;
-            pin.Direction = draft.Direction;
-            pin.VoltageLevel = draft.VoltageLevel;
-            pin.ChannelNumber = draft.ChannelNumber;
-            pin.IoChannelId = draft.IoChannelId;
-        }
-
         foreach (var draft in request.Connections.Updated)
         {
             var connection = context.Connections[draft.Id];
@@ -1375,57 +1078,26 @@ public class DiagramService : IDiagramService
         public required Dictionary<Guid, Pin> Pins { get; init; }
         public required Dictionary<Guid, Connection> Connections { get; init; }
         public required Dictionary<Guid, DiagramAnnotation> Annotations { get; init; }
-        /// <summary>Bu gonderide kalkacak pinler: dogrudan silinenler + cihaziyla gidenler.</summary>
+        /// <summary>Bu gonderide cihaziyla birlikte kalkacak pinler.</summary>
         public required HashSet<Guid> PinsBeingRemoved { get; init; }
         /// <summary>Pini kalktigi icin birlikte silinecek kablolar.</summary>
         public required List<Connection> CascadeConnections { get; init; }
         /// <summary>Kaydetmeden sonra da ayakta kalacak pin ciftleri (yonsuz anahtar).</summary>
-        public required HashSet<(string, string)> ExistingPairs { get; init; }
-        /// <summary>Adi kontrol edilecek cihazlarin canli pin adlari (kalkanlar haric).</summary>
-        public required Dictionary<Guid, HashSet<string>> LivePinNames { get; init; }
+        public required HashSet<(Guid, Guid)> ExistingPairs { get; init; }
         /// <summary>Kabindeki aktif cihazlarin dis kodlari (yalnizca gerektiginde okunur).</summary>
         public required Dictionary<Guid, string> DeviceExternalCodes { get; init; }
-        /// <summary>Bu kabine ait olan ve pine baglanabilecek IO kanallari.</summary>
-        public required HashSet<Guid> ValidIoChannelIds { get; init; }
     }
 
     private sealed class CreatedEntities
     {
         public List<(string TempId, Device Entity)> Devices { get; } = [];
-        public List<(string TempId, Pin Entity)> Pins { get; } = [];
         public List<(string TempId, Connection Entity)> Connections { get; } = [];
         public List<(string TempId, DiagramAnnotation Entity)> Annotations { get; } = [];
         public int InstantiatedPinCount { get; set; }
     }
 
-    private sealed record ResolvedEndpoint(string Key, VoltageLevel? VoltageLevel);
-
     private sealed record PinPairRow(Guid Id, Guid SourcePinId, Guid TargetPinId);
 
-    private sealed record PinNameRow(Guid Id, Guid DeviceId, string Name);
-
     private sealed record DeviceCodeRow(Guid Id, string ExternalCode);
-
-    /// <summary>
-    /// Ayni alanda birden fazla hata birikebilsin diye kucuk bir toplayici.
-    /// <c>ProblemDetails.errors</c> sozlugunun sekli: alan -> mesaj dizisi.
-    /// </summary>
-    private sealed class DraftErrorBag
-    {
-        private readonly Dictionary<string, List<string>> _errors = new(StringComparer.Ordinal);
-
-        public void Add(string key, string message)
-        {
-            if (!_errors.TryGetValue(key, out var messages))
-            {
-                messages = [];
-                _errors[key] = messages;
-            }
-            messages.Add(message);
-        }
-
-        public Dictionary<string, string[]> ToDictionary()
-            => _errors.ToDictionary(e => e.Key, e => e.Value.ToArray(), StringComparer.Ordinal);
-    }
     #endregion
 }
