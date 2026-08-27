@@ -1,13 +1,7 @@
-using CabinetOs.Business.Abstract;
-using CabinetOs.Business.Utils;
 using CabinetOs.Core.Utils.ResultPattern;
-using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
-using CabinetOs.Model.Dtos.Common;
 using CabinetOs.Model.Dtos.Diagram.Commands;
 using CabinetOs.Model.Dtos.Diagram.Queries;
-using CabinetOs.Model.Entities;
-using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Business.Concrete;
 
@@ -36,8 +30,8 @@ public partial class DiagramService
         if (!cabinetExists)
             return Result<DiagramSaveResponse>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
 
-        // Bos gonderi: transaction bile acilmaz. Istemcinin debounce'u zaman zaman
-        // bos tetiklenebilir ve bunu 400 ile cezalandirmak yalnizca gurultu uretir.
+        // Bos gonderi: transaction bile acilmaz. Kaydet dugmesi bos bir gunlukle
+        // tetiklendiginde bunu 400 ile cezalandirmak yalnizca gurultu uretir.
         if (request.IsEmpty)
             return Result<DiagramSaveResponse>.Success(new DiagramSaveResponse { SavedAtUtc = DateTime.UtcNow });
 
@@ -53,31 +47,25 @@ public partial class DiagramService
         try
         {
             // ---- FAZ 1: SILMELER ----
-            // Silmeler ve olusturmalar AYRI SaveChanges'lerde akitilir. Sebep filtreli
+            // Silmeler ve yazmalar AYRI SaveChanges'lerde akitilir. Sebep filtreli
             // unique index: IX_Connection_SourcePinId_TargetPinId "WHERE IsDeleted = 0"
             // ile calisir. Kullanici bir kabloyu silip AYNI iki pin arasina yenisini
             // cizdiginde (cizdi-vazgecti-yeniden cizdi, editorde siradan bir dizi),
             // silme bir UPDATE, olusturma bir INSERT'tur; tek batch'te EF'in sirasi
             // garanti degildir ve INSERT once giderse index ihlali 500 doner.
-            ApplyDeletions(request, context);
+            var skippedDeleteCount = ApplyDeletions(request, context);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // ---- FAZ 2: OLUSTURMALAR + GUNCELLEMELER ----
-            var created = ApplyCreations(cabinetId, request, context);
-            ApplyUpdates(request, context);
+            var instantiatedPinCount = ApplyUpserts(cabinetId, request, context);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
-            // Id'ler ancak SaveChanges'ten SONRA okunur: yeni satirlarin anahtarlari
-            // bu noktada kesinlesmistir ve kaynak ne olursa olsun (istemci uretimi,
-            // sunucu uretimi) dogru degeri veririz.
             return Result<DiagramSaveResponse>.Success(new DiagramSaveResponse
             {
-                Devices = ToIdMap(created.Devices, d => d.Id),
-                Connections = ToIdMap(created.Connections, c => c.Id),
-                Annotations = ToIdMap(created.Annotations, a => a.Id),
-                InstantiatedPinCount = created.InstantiatedPinCount,
+                InstantiatedPinCount = instantiatedPinCount,
+                SkippedDeleteCount = skippedDeleteCount,
                 SavedAtUtc = DateTime.UtcNow
             });
         }
@@ -90,11 +78,4 @@ public partial class DiagramService
             throw;
         }
     }
-
-    /// <summary>
-    /// Id secici disaridan gecilir: <c>IEntity</c> bos bir isaretci arayuz, <c>Id</c>
-    /// tasimiyor. Anahtari yansimayla degil, cagiranin lambda'siyla okuyoruz.
-    /// </summary>
-    private static List<IdMapEntry> ToIdMap<TEntity>(List<(string TempId, TEntity Entity)> created, Func<TEntity, Guid> idOf)
-        => created.Select(c => new IdMapEntry(c.TempId, idOf(c.Entity))).ToList();
 }

@@ -5,10 +5,19 @@ using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Model.Dtos.Diagram.Commands;
 
-public class ConnectionCreateDraft : IDto, ITempIdDraft
+/// <summary> Canvas'taki bir kablonun TAM durumu — yeni de olabilir, mevcut da. </summary>
+public class ConnectionDraft : IDto, IIdentifiableDraft
 {
-    public string TempId { get; set; } = null!;
+    public Guid Id { get; set; }
 
+    /// <summary>
+    /// Uclar her zaman KALICI pin kimligidir: pinleri sunucu, cihazla birlikte
+    /// sablondan uretir.
+    ///
+    /// Mevcut bir kabloda uc DEGISTIRILEMEZ — farkli gonderilirse 400 doner.
+    /// Bir kablonun ucunu tasimak sil + olustur'dur; aksi halde filtreli unique
+    /// index (SourcePinId, TargetPinId) ile cakisan sessiz durumlar dogar.
+    /// </summary>
     public Guid SourcePinId { get; set; }
     public Guid TargetPinId { get; set; }
 
@@ -18,20 +27,20 @@ public class ConnectionCreateDraft : IDto, ITempIdDraft
     public LineStyle LineStyle { get; set; }
     public double StrokeWidth { get; set; }
     public EdgeRouting Routing { get; set; }
+
     /// <summary>Ara kirilma noktalari, kaynak -> hedef sirali, IKI UC NOKTA HARIC. Bos olabilir.</summary>
     public List<PointDto> Waypoints { get; set; } = [];
     public int ZIndex { get; set; }
 }
 
-public class ConnectionCreateDraftValidator : AbstractValidator<ConnectionCreateDraft>
+public class ConnectionDraftValidator : AbstractValidator<ConnectionDraft>
 {
-    public ConnectionCreateDraftValidator()
+    public ConnectionDraftValidator()
     {
-        this.AddTempIdRules();
+        RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Kablo kimligi zorunlu");
 
         RuleFor(v => v.SourcePinId).NotEqual(Guid.Empty).WithMessage("Kaynak pin kimligi zorunlu");
         RuleFor(v => v.TargetPinId).NotEqual(Guid.Empty).WithMessage("Hedef pin kimligi zorunlu");
-
         RuleFor(v => v.TargetPinId)
             .NotEqual(v => v.SourcePinId)
             .WithMessage("Bir pin kendisine baglanamaz");

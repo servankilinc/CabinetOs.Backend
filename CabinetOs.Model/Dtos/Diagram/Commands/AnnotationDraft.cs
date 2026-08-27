@@ -4,10 +4,10 @@ using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Model.Dtos.Diagram.Commands;
 
-/// <summary> Canvas'a eklenen yeni not / kutu / etiket. </summary>
-public class AnnotationCreateDraft : IDto, ITempIdDraft
+/// <summary> Canvas'taki bir not / kutu / etiketin TAM durumu — yeni de olabilir, mevcut da. </summary>
+public class AnnotationDraft : IDto, IIdentifiableDraft
 {
-    public string TempId { get; set; } = null!;
+    public Guid Id { get; set; }
     public string Name { get; set; } = null!;
     public double CoordinateX { get; set; }
     public double CoordinateY { get; set; }
@@ -26,11 +26,11 @@ public class AnnotationCreateDraft : IDto, ITempIdDraft
     public string BorderColor { get; set; } = null!;
 }
 
-public class AnnotationCreateDraftValidator : AbstractValidator<AnnotationCreateDraft>
+public class AnnotationDraftValidator : AbstractValidator<AnnotationDraft>
 {
-    public AnnotationCreateDraftValidator()
+    public AnnotationDraftValidator()
     {
-        this.AddTempIdRules();
+        RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Not kimligi zorunlu");
         RuleFor(v => v.Name).NotEmpty().WithMessage("Not adi zorunlu");
         RuleFor(v => v.Name).MaximumLength(128).WithMessage("Not adi en fazla 128 karakter olabilir");
         RuleFor(v => v.Text).MaximumLength(4000).WithMessage("Not metni en fazla 4000 karakter olabilir");
