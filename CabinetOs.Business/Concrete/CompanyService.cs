@@ -86,7 +86,9 @@ public class CompanyService : ICompanyService
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
             return Result.Validation(validationResult.Failures, description: $"Validation failed for CompanyCreateDto");
-        await _unitOfWork.Companies.AddAndSaveAsync(_mapper.Map<Company>(request), cancellationToken);
+        var entity = _mapper.Map<Company>(request);
+        entity.IsActive = true;
+        await _unitOfWork.Companies.AddAndSaveAsync(entity, cancellationToken);
         return Result.Success();
     }
 
