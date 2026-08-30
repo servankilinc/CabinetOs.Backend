@@ -320,6 +320,67 @@ public static class EntityEnums
     }
 
 
+    /// <summary>
+    /// Kameranın video akışında kullandığı sıkıştırma.
+    ///
+    /// Neden kolon olarak saklanıyor: canlı izleme WebRTC üzerinden gider ve
+    /// tarayıcılarda <b>H.265 desteği yoktur</b>. Bu alan, H.265'e ayarlı bir
+    /// kameranın izleme ucundan sessizce transcode edilmek yerine AÇIKÇA
+    /// reddedilmesini sağlar — medya geçidinde transcoding yapmamak bu turun
+    /// bağlayıcı kararlarından biridir (düşük gecikme + düşük CPU).
+    /// </summary>
+    public enum VideoCodec
+    {
+        H264 = 1,
+        H265 = 2
+    }
+
+    /// <summary>
+    /// Hangi akışın izleneceği.
+    ///
+    /// Ayrı bir seçim olarak var, çünkü aksi halde arayüz her yerde ana akımı
+    /// açar: 16 kameralık bir liste ekranında 16 adet 1080p akış demektir.
+    /// Kamera üzerinde ikisi ayrı kanal numarasıdır (<c>MainStreamChannel</c> /
+    /// <c>SubStreamChannel</c>) ve medya geçidinde ayrı birer yol olarak durur.
+    /// </summary>
+    public enum StreamProfile
+    {
+        /// <summary>Yüksek kalite — tam ekran / tek kamera görünümü.</summary>
+        Main = 1,
+        /// <summary>Düşük bant genişliği — liste, küçük önizleme.</summary>
+        Sub = 2
+    }
+
+    /// <summary>
+    /// Merkeze alınan görüntünün cinsi.
+    ///
+    /// Klip için ayrı bir "bitiş zamanı" alanı yoktur; bitiş
+    /// <c>CapturedAtUtc + DurationSec</c>'tir.
+    /// </summary>
+    public enum CaptureType
+    {
+        /// <summary>Tek kare JPEG (~150 KB).</summary>
+        Snapshot = 1,
+        /// <summary>Kısa video klip — bu turda YAZAN KOD YOKTUR, şema hazırdır.</summary>
+        Clip = 2
+    }
+
+    /// <summary>
+    /// Çekimin akıbeti.
+    ///
+    /// <see cref="Failed"/> de bir SATIR BIRAKIR: "olay anında görüntü YOK"
+    /// bilgisinin kendisi delildir; satırı hiç yazmamak o bilgiyi siler.
+    /// </summary>
+    public enum CaptureStatus
+    {
+        /// <summary>İstek alındı, dosya henüz depoda değil.</summary>
+        Pending = 1,
+        /// <summary>Dosya depoda, indirilebilir.</summary>
+        Available = 2,
+        /// <summary>Alınamadı — sebebi <c>FailureReason</c>'dadır.</summary>
+        Failed = 3
+    }
+
 
     /// <summary>
     /// Kullanıcı izin türleri.

@@ -88,6 +88,40 @@ builder.Services.AddRateLimiter(options =>
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst
         });
     });
+
+    // SCADA ingest'i AYRI bir politika ister ve bu politikanin VAR OLMASI sarttir:
+    // ScadaController'daki [EnableRateLimiting("policy_scada_ingest")] tanimsiz bir
+    // ada isaret ederse middleware InvalidOperationException atar ve uc her istekte
+    // 500 doner. (Tam olarak bu olmustu — politika Program.cs yeniden yazilirken
+    // dusmus, oznitelik yerinde kalmisti; ingest sessizce tamamen kirilmisti.)
+    //
+    // Neden ayri: varsayilan politika 50 istek/10 sn ve IP'ye gore partition ediyor.
+    // SCADA tek bir sunucudur, dolayisiyla TUM kabinlerin telemetrisi tek partition'a
+    // duser ve saniyede 5 istekte bogulur. Limit kabin sayisina gore olceklenmis.
+    //
+    // Partition yine IP: ingest [AllowAnonymous] oldugu icin kullanici kimligi yok.
+    // Govdedeki cabinetId'ye gore bolumlendirmek, sahte Guid'lerle sinirsiz butce
+    // uretmek demek olurdu.
+    //
+    // Butce appsettings'ten okunur (`Scada:RateLimitPermitsPer10Seconds`) —
+    // sozlesme dokumaninda kabin sayisina gore olceklenebilir olarak ilan edilmis.
+    int scadaPermitLimit = builder.Configuration.GetValue<int?>("Scada:RateLimitPermitsPer10Seconds") ?? 600;
+
+    options.AddPolicy("policy_scada_ingest", httpContext =>
+    {
+        string partitionKey = $"scada-ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+        return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = scadaPermitLimit,
+            Window = TimeSpan.FromSeconds(10),
+            SegmentsPerWindow = 4,
+            // Kuyruk YOK: bekletilen bir telemetri paketi, reddedilenden kotudur —
+            // sirasi geldiginde tasidigi deger coktan bayatlamis olur.
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        });
+    });
 });
 #endregion
 

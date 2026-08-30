@@ -15,5 +15,7 @@ namespace CabinetOs.Model.Entities
         public DateTime? UpdateDateUtc { get; set; }
         public virtual ICollection<Cabinet>? Cabinets { get; set; }
         public virtual ICollection<Device>? Devices { get; set; }
+        /// <summary>Kameralar da AYNI durum sozlugunu kullanir — ayri bir enum acilmadi.</summary>
+        public virtual ICollection<Camera>? Cameras { get; set; }
     }
 }

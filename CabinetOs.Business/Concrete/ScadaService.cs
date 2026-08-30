@@ -10,6 +10,7 @@ using CabinetOs.Model.Entities;
 // de bu dosyanin kapsaminda; nitelenmeden yazilirsa derleyici belirsizlik hatasi
 // verir. Burada gecen her `DeviceStatus` ENUM'dur.
 using DeviceStatus = CabinetOs.Model.Enums.EntityEnums.DeviceStatus;
+using PinDirection = CabinetOs.Model.Enums.EntityEnums.PinDirection;
 
 namespace CabinetOs.Business.Concrete;
 
@@ -87,6 +88,12 @@ public class ScadaService : IScadaService
         var channelChanges = new List<ChannelValueChange>();
         var statusChanges = new List<DeviceStatusChange>();
 
+        // Olayin SAHADA gerceklestigi an. SCADA gondermediyse kendi saatimize
+        // duseriz — iki kolonun esit olmasi "damga gelmedi" demektir ve bu bilgi
+        // tek bir zaman damgasi saklansaydi bir daha geri getirilemezdi.
+        var occurredAt = request.TimestampUtc ?? now;
+        var events = new List<ChannelEvent>();
+
         foreach (var reading in request.Devices)
         {
             if (!deviceByCode.TryGetValue(reading.ExternalCode, out var device))
@@ -132,6 +139,8 @@ public class ScadaService : IScadaService
                 if (string.Equals(channel.CurrentValue, channelReading.Value, StringComparison.Ordinal))
                     continue;
 
+                var previousValue = channel.CurrentValue;
+
                 channel.CurrentValue = channelReading.Value;
                 channel.ValueUpdatedAt = now;
                 response.Changed++;
@@ -144,6 +153,22 @@ public class ScadaService : IScadaService
                     Value = channelReading.Value,
                     UpdatedAt = now
                 });
+
+                // Anlik deger her zaman guncellenir; KALICI OLAY ise ayri bir
+                // karardir ve cok daha dar bir kumeye yazilir.
+                if (ShouldRecordEvent(channel, channelReading.Value))
+                {
+                    events.Add(new ChannelEvent
+                    {
+                        IoChannelId = channel.Id,
+                        CabinetId = cabinet.Id,
+                        Value = channelReading.Value!,
+                        PreviousValue = previousValue,
+                        OccurredAtUtc = occurredAt,
+                        ReceivedAtUtc = now
+                    });
+                    response.EventsRecorded++;
+                }
             }
         }
 
@@ -152,6 +177,12 @@ public class ScadaService : IScadaService
         cabinet.DeviceStatusId = WorstStatus(devices);
         cabinet.LastSeen = now;
         cabinet.ScadaLastIngestAt = now;
+
+        // Olaylar kanal guncellemeleriyle AYNI SaveChanges'te iner. Ayri bir
+        // kaydetme olsaydi ikisi arasinda kalan bir hata, degeri yazilmis ama
+        // olayi yazilmamis (ya da tersi) bir kanal birakirdi.
+        foreach (var channelEvent in events)
+            _unitOfWork.ChannelEvents.Add(channelEvent);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -262,6 +293,44 @@ public class ScadaService : IScadaService
     }
 
     // ==================== YARDIMCILAR ====================
+
+    /// <summary>
+    /// Bu deger degisimi kalici bir <see cref="ChannelEvent"/> olarak
+    /// yazilmali mi? Cagrildigi yerde degerin DEGISTIGI zaten bilinir.
+    ///
+    /// Karar zinciri (sirayla):
+    /// <list type="number">
+    /// <item><b>Yon.</b> Yalnizca giris kanallari olay uretir. Bir cikisi biz
+    /// surduugumuzde donen deger bir saha olayi degil, kendi komutumuzun
+    /// yankisidir ve kaydi zaten <c>DeviceCommand</c>'dadir. <c>Bidirectional</c>
+    /// da disaridadir: yonu belirsiz bir kanalin olayi da belirsizdir.</item>
+    /// <item><b>Opt-in.</b> Kanal isaretli degilse yazilmaz. Bir kabinde onlarca
+    /// giris pini vardir ve hepsinin gecmisi istenmiyor — kullanilmayan uclar,
+    /// yedek hatlar, kurulumda salinan kanallar.</item>
+    /// <item><b>Tetikleyici.</b> <c>EventTriggerValue</c> doluysa yalnizca o
+    /// degere gecis olaydir: hareket sensorunde <c>0→1</c> olaydir,
+    /// <c>1→0</c> degildir.</item>
+    /// </list>
+    /// </summary>
+    private static bool ShouldRecordEvent(IoChannel channel, string? value)
+    {
+        if (channel.Direction != PinDirection.Input) return false;
+        if (!channel.IsEventLogged) return false;
+
+        // Deger okunamadi ("kanal var ama cevap yok"). Kaydedilecek bir DEGER
+        // yok; anlik deger yine de null'a cekilir, ama olay uretilmez.
+        if (value == null) return false;
+
+        // Govde 256 karaktere kadar deger kabul ediyor, olay kolonu 32.
+        // Bu turda olay kaynagi 1/0 gonderen giris pinleridir; 32 karakteri asan
+        // bir deger tanim geregi bu ozelligin kaydettigi sey degildir. Sessizce
+        // atlanir — istegi dusurmek, K7'nin "tanimadigi referansi atla, batch'i
+        // reddetme" kuralini bozardi.
+        if (value.Length > 32) return false;
+
+        return channel.EventTriggerValue == null
+            || string.Equals(channel.EventTriggerValue, value, StringComparison.Ordinal);
+    }
 
     private static void Skip(ScadaIngestResponse response, string reference)
     {

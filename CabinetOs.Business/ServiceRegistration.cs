@@ -36,6 +36,8 @@ namespace CabinetOs.Business
 
             services.AddScoped<IDiagramService, DiagramService>();
             services.AddScoped<IScadaService, ScadaService>();
+            services.AddScoped<IChannelEventService, ChannelEventService>();
+            services.AddScoped<ICameraService, CameraService>();
             services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();
 
             return services;

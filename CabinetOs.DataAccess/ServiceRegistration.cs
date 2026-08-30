@@ -28,6 +28,9 @@ public static class ServiceRegistration
         services.AddScoped<IComponentTemplatePinRepository, ComponentTemplatePinRepository>();
         services.AddScoped<IDeviceRepository, DeviceRepository>();
         services.AddScoped<IDiagramAnnotationRepository, DiagramAnnotationRepository>();
+        services.AddScoped<ICameraRepository, CameraRepository>();
+        services.AddScoped<ICameraCaptureRepository, CameraCaptureRepository>();
+        services.AddScoped<IChannelEventRepository, ChannelEventRepository>();
         services.AddScoped<IDeviceStatusRepository, DeviceStatusRepository>();
         services.AddScoped<IDeviceTypeRepository, DeviceTypeRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();

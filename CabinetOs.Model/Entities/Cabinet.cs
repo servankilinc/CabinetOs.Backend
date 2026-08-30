@@ -30,5 +30,8 @@ namespace CabinetOs.Model.Entities
         public virtual ICollection<Connection>? Connections { get; set; }
         /// <summary>Kabin basina tek satir (1:1) — canvas tercihleri.</summary>
         public virtual CanvasSettings? CanvasSettings { get; set; }
+        /// <summary>Kabin icindeki IP kameralar — diyagramda yer almazlar.</summary>
+        public virtual ICollection<Camera>? Cameras { get; set; }
+        public virtual ICollection<ChannelEvent>? ChannelEvents { get; set; }
     }
 }

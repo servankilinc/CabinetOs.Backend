@@ -30,6 +30,9 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     public DbSet<DiagramAnnotation> DiagramAnnotations { get; set; }
     public DbSet<DeviceStatus> DeviceStatuses { get; set; }
     public DbSet<DeviceType> DeviceTypes { get; set; }
+    public DbSet<Camera> Cameras { get; set; }
+    public DbSet<CameraCapture> CameraCaptures { get; set; }
+    public DbSet<ChannelEvent> ChannelEvents { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Log> Logs { get; set; }
     public DbSet<Archive> Archives { get; set; }
@@ -104,6 +107,9 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             i.HasMany(i => i.Pins).WithOne(p => p.IoChannel).HasForeignKey(p => p.IoChannelId).OnDelete(DeleteBehavior.Restrict);
             i.HasMany(i => i.DeviceCommands).WithOne(d => d.IoChannel).HasForeignKey(d => d.IoChannelId).OnDelete(DeleteBehavior.Restrict);
             i.HasIndex(i => new { i.DeviceId, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
+            // ChannelEvent iliskisi Entity<ChannelEvent> blogunda tanimli — ayni
+            // iliskiyi iki yerde yapilandirmak, ikisi ayrisirsa sessiz bir surpriz olur.
+            i.Property(i => i.EventTriggerValue).HasMaxLength(32);
             i.HasQueryFilter(f => !f.IsDeleted);
         });
         modelBuilder.Entity<Pin>(p =>
@@ -158,6 +164,47 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         {
             d.ToTable("DiagramAnnotation");
             d.HasKey(d => d.Id);
+        });
+        modelBuilder.Entity<Camera>(c =>
+        {
+            c.ToTable("Camera");
+            c.HasKey(c => c.Id);
+            // Kabin -> Restrict: Connection -> Cabinet ile ayni tercih. Ayrica
+            // CameraCapture -> Camera -> Cabinet ile Cabinet uzerinden ikinci bir
+            // cascade yolu acilmasi MSSQL tarafindan reddedilirdi.
+            c.HasOne(c => c.Cabinet).WithMany(c => c.Cameras).HasForeignKey(c => c.CabinetId).OnDelete(DeleteBehavior.Restrict);
+            c.HasOne(c => c.DeviceStatus).WithMany(d => d.Cameras).HasForeignKey(c => c.DeviceStatusId).OnDelete(DeleteBehavior.Restrict);
+            c.HasMany(c => c.Captures).WithOne(p => p.Camera).HasForeignKey(p => p.CameraId).OnDelete(DeleteBehavior.Restrict);
+            // Ayni kabinde ayni IP iki kez tanimlanamaz: ikinci kayit sessizce
+            // birincinin goruntusunu gosterir ve hangisinin dogru oldugu belirsiz kalirdi.
+            // Filtre IsActive uzerinde — pasife alinan bir kameranin IP'si serbest kalmali.
+            c.HasIndex(c => new { c.CabinetId, c.IpAddress }).IsUnique().HasFilter("[IsActive] = 1");
+            c.HasIndex(c => new { c.CabinetId, c.Name }).IsUnique().HasFilter("[IsActive] = 1");
+        });
+        modelBuilder.Entity<CameraCapture>(p =>
+        {
+            p.ToTable("CameraCapture");
+            p.HasKey(p => p.Id);
+            // Delil, isteyen kullanicinin silinmesini engeller.
+            p.HasOne(p => p.RequestedByUser).WithMany().HasForeignKey(p => p.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            // "Bu kameradan son 1 ayda ne cekildi" sorgusunun tek dayanagi.
+            p.HasIndex(p => new { p.CameraId, p.CapturedAtUtc });
+        });
+        modelBuilder.Entity<ChannelEvent>(e =>
+        {
+            e.ToTable("ChannelEvent");
+            e.HasKey(e => e.Id);
+            e.HasOne(e => e.IoChannel).WithMany(i => i.ChannelEvents).HasForeignKey(e => e.IoChannelId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(e => e.Cabinet).WithMany(c => c.ChannelEvents).HasForeignKey(e => e.CabinetId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(e => e.Value).HasMaxLength(32).IsRequired();
+            e.Property(e => e.PreviousValue).HasMaxLength(32);
+            // Iki sicak sorgu: "su kabinin su araliktaki olaylari" ve
+            // "su kanalin gecmisi". Ikisi de zamana gore AZALAN siralanir.
+            e.HasIndex(e => new { e.CabinetId, e.OccurredAtUtc });
+            e.HasIndex(e => new { e.IoChannelId, e.OccurredAtUtc });
+            // HasQueryFilter YOK: ChannelEvent soft-delete tasimaz.
+            // IoChannel'in kendi filtresi var, ama olay satiri kanaldan bagimsiz
+            // okunabilmelidir — silinmis bir kanalin gecmisi de delildir.
         });
         modelBuilder.Entity<DeviceStatus>(d =>
         {

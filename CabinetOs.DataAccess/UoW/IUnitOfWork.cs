@@ -38,6 +38,12 @@ namespace CabinetOs.DataAccess.UoW
 
         IDeviceTypeRepository DeviceTypes { get; }
 
+        ICameraRepository Cameras { get; }
+
+        ICameraCaptureRepository CameraCaptures { get; }
+
+        IChannelEventRepository ChannelEvents { get; }
+
         IRefreshTokenRepository RefreshTokens { get; }
 
         int SaveChanges();

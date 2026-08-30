@@ -35,6 +35,20 @@ public class ScadaIngestResponse : IDto
     /// </summary>
     public List<string> SkippedRefs { get; set; } = [];
 
+    /// <summary>
+    /// Kalici olarak kaydedilen <c>ChannelEvent</c> sayisi.
+    ///
+    /// <see cref="Changed"/>'in bir ALT KUMESIDIR ve tipik olarak ondan cok
+    /// kucuktur: olay yalnizca (a) giris yonlu, (b) <c>IsEventLogged</c> isaretli
+    /// ve (c) varsa <c>EventTriggerValue</c>'yu tutturan kanallarda yazilir.
+    ///
+    /// Ayri bir sayac olmasinin sebebi <see cref="Skipped"/> ile ayni: kaydin
+    /// yazilmadigi, arayuzde hicbir belirti vermeden aylarca fark edilmeyebilir.
+    /// <c>changed &gt; 0</c> ama <c>eventsRecorded = 0</c> gormek, "hangi kanal
+    /// isaretli?" sorusunu sordurmasi gereken tek isarettir.
+    /// </summary>
+    public int EventsRecorded { get; set; }
+
     /// <summary>Sunucunun islemi tamamladigi an — SCADA'nin gonderdigi zaman degil.</summary>
     public DateTime ReceivedAtUtc { get; set; }
 
