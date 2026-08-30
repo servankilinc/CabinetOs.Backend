@@ -204,7 +204,7 @@ public partial class DeviceCommandService
     /// veritabaninda duran metin ile tel uzerinde giden metin AYNI olsun.
     /// </summary>
     private static string BuildPayloadJson(DeviceCommandSendRequest request) =>
-        JsonSerializer.Serialize(new CommandPayload(request.Value, request.DurationMs), ApiJsonOptions.ApiJson);
+        JsonSerializer.Serialize(new CommandPayload(request.Value, request.DurationMs), ProjectJsonOptions.SerializerOptions);
 
     private sealed record CommandPayload(string? Value, int? DurationMs);
 

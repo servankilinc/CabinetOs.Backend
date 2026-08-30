@@ -65,7 +65,7 @@ public class ScadaCommandGateway : IScadaCommandGateway
             using var response = await client.PostAsJsonAsync(
                 BuildUrl(baseUrl),
                 envelope,
-                ApiJsonOptions.ApiJson,
+                ProjectJsonOptions.SerializerOptions,
                 timeoutToken);
 
             string? body = await ReadBoundedAsync(response.Content, timeoutToken);

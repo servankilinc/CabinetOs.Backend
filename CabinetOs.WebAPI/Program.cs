@@ -235,7 +235,7 @@ builder.Services.AddHealthChecks();
 // PascalCase, REST camelCase gonderir ve ayni alan iki adla gelirdi.
 builder.Services
     .AddSignalR()
-    .AddJsonProtocol(options => ApiJsonOptions.Apply(options.PayloadSerializerOptions));
+    .AddJsonProtocol(options => options.PayloadSerializerOptions.SetByProjectSettings());
 
 // Business katmanindaki yayin portunun implementasyonu. Business AspNetCore'a
 // referans vermedigi icin SignalR bilgisi bu katmanda kaliyor.
@@ -273,7 +273,7 @@ builder.Services.AddHttpClient(ScadaCommandGateway.HttpClientName, client =>
 // JSON davranisi framework varsayilanina birakilmiyor, ACIKCA sabitleniyor. Ayrintili gerekce ve frontend karsiliklari: CabinetOs.Core/Utils/ApiJsonOptions.cs
 builder.Services
     .AddControllers()
-    .AddJsonOptions(options => ApiJsonOptions.Apply(options.JsonSerializerOptions));
+    .AddJsonOptions(options => options.JsonSerializerOptions.SetByProjectSettings());
 
 builder.Services.AddOpenApi(options =>
 {
