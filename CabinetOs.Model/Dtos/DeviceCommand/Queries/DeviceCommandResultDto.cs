@@ -17,7 +17,11 @@ public class DeviceCommandResultDto : IDto
     public Guid Id { get; set; }
     public Guid DeviceId { get; set; }
 
-    /// <summary><c>Reset</c>/<c>Sync</c> icin NULL — komut modulun tamamina gider.</summary>
+    /// <summary>
+    /// Kumandanin hedefledigi kanal. Gonderim yolunda artik her zaman doludur;
+    /// tipi <c>Guid?</c> kaldi cunku DB kolonu nullable ve daraltmak okuma
+    /// sozlesmesini degistirirdi.
+    /// </summary>
     public Guid? IoChannelId { get; set; }
 
     /// <summary>
@@ -28,7 +32,7 @@ public class DeviceCommandResultDto : IDto
 
     public DeviceCommandType CommandType { get; set; }
 
-    /// <summary>Gonderilen payload (<c>{"value":"1","durationMs":3000}</c>).</summary>
+    /// <summary>Gonderilen payload (<c>{"value":"1"}</c>).</summary>
     public string? PayloadJson { get; set; }
 
     /// <summary>

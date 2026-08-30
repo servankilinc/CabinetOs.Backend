@@ -35,15 +35,17 @@ public class ScadaCommandEnvelope : IDto
     /// <summary><c>Device.ExternalCode</c> — SCADA'nin cihazi tanidigi kod.</summary>
     public string ExternalCode { get; set; } = null!;
 
-    /// <summary><c>Reset</c>/<c>Sync</c> icin NULL: komut modulun tamamina gider.</summary>
+    /// <summary>
+    /// Hedef kanal. Tek kumanda turu (<c>SetOutput</c>) her zaman bir kanali
+    /// hedefledigi icin pratikte hep doludur; tipi <c>int?</c> birakildi, cunku
+    /// daraltmak SCADA'ya giden tel sozlesmesini degistirirdi.
+    /// </summary>
     public int? ChannelNumber { get; set; }
 
     public EntityEnums.DeviceCommandType CommandType { get; set; }
 
     /// <summary>Telemetriyle ayni sekilde STRING; kanal basina tip yoktur.</summary>
     public string? Value { get; set; }
-
-    public int? DurationMs { get; set; }
 
     /// <summary>Komutun SUNUCUDA olustugu an. SCADA'nin saatine guvenilmez.</summary>
     public DateTime IssuedAtUtc { get; set; }

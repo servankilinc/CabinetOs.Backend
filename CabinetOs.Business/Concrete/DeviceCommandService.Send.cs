@@ -140,7 +140,6 @@ public partial class DeviceCommandService
                 ChannelNumber = channel?.ChannelNumber,
                 CommandType = request.CommandType,
                 Value = request.Value,
-                DurationMs = request.DurationMs,
                 IssuedAtUtc = issuedAt
             },
             TimeSpan.FromMilliseconds(Math.Clamp(cabinet.ScadaCommandTimeoutMs, MinTimeoutMs, MaxTimeoutMs)));
@@ -204,9 +203,9 @@ public partial class DeviceCommandService
     /// veritabaninda duran metin ile tel uzerinde giden metin AYNI olsun.
     /// </summary>
     private static string BuildPayloadJson(DeviceCommandSendRequest request) =>
-        JsonSerializer.Serialize(new CommandPayload(request.Value, request.DurationMs), ProjectJsonOptions.SerializerOptions);
+        JsonSerializer.Serialize(new CommandPayload(request.Value), ProjectJsonOptions.SerializerOptions);
 
-    private sealed record CommandPayload(string? Value, int? DurationMs);
+    private sealed record CommandPayload(string? Value);
 
     private Guid? ResolveRequesterId()
     {

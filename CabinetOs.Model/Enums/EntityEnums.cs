@@ -269,33 +269,13 @@ public static class EntityEnums
         /// <summary>
         /// Çıkış kanalını kalıcı olarak sürer (röle, LED).
         /// Payload: { "Value": 1 }
+        ///
+        /// <b>Bugün tek kumanda türü budur.</b> Darbe, değer yazma, modül reset ve
+        /// senkronizasyon türleri kaldırıldı; her kumanda bir çıkış kanalını hedefler
+        /// ve bir değer taşır. Bu yüzden <c>IoChannelId</c> ve <c>Value</c>
+        /// koşulsuz zorunludur.
         /// </summary>
-        SetOutput = 1,
-
-        /// <summary>
-        /// Çıkışı belirtilen süre sürüp otomatik bırakır (kilit açma, siren).
-        /// Süreyi SCADA uygular — bizde bekleyen bir iş yoktur.
-        /// Payload: { "Value": 1, "DurationMs": 3000 }
-        /// </summary>
-        PulseOutput = 2,
-
-        /// <summary>
-        /// Analog/sayısal bir kanala değer yazar (ayar noktası, eşik).
-        /// Payload: { "Value": 250 }
-        /// </summary>
-        SetValue = 10,
-
-        /// <summary>
-        /// Modülü yeniden başlatır. Kanal hedefi yoktur (IoChannelId null).
-        /// Payload: {}
-        /// </summary>
-        Reset = 20,
-
-        /// <summary>
-        /// Cihaz saatini/konfigürasyonunu sunucuyla senkronize eder.
-        /// Payload: {}
-        /// </summary>
-        Sync = 21
+        SetOutput = 1
     }
 
 
@@ -384,24 +364,113 @@ public static class EntityEnums
 
     /// <summary>
     /// Kullanıcı izin türleri.
+    ///
+    /// <b>Bugün HİÇBİRİ ZORLANMIYOR.</b> Giriş sırasında üretilen token'a
+    /// <c>permission</c> claim'i yazılır, ama sunucuda o claim'i okuyan tek bir
+    /// kod yolu yoktur: uçlar yalnızca <c>[Authorize]</c> ile korunur, yani
+    /// oturum açmış herkes hepsini çağırabilir. Arayüzdeki kumanda düğmeleri
+    /// gizlenir — bu bir görünüm tercihidir, güvenlik sınırı DEĞİLDİR.
+    /// Yetkilendirme <c>ROADMAP.md § Kapsam dışı</c>'nda planlı bir iş olarak durur.
+    ///
+    /// Değerler <b>0'dan başlar ve süreklidir</b> (0..9). <c>ViewDiagram = 0</c>
+    /// olduğu için <c>Permission</c> lookup tablosunda
+    /// <c>ValueGeneratedNever()</c> zorunludur; onsuz SQL Server IDENTITY üretmeye
+    /// çalışır ve <c>HasData</c> seed'i reddedilir.
+    ///
+    /// Her üyenin <c>Permission</c> tablosunda bir satırı vardır
+    /// (<c>AppDbContext</c> seed'i); tablodaki <c>Category</c> arayüzdeki izin
+    /// matrisini gruplar. <b>Yeni üye eklerken seed satırı da eklenmelidir</b> —
+    /// unutulursa <c>RolePermission</c> FK ihlali olarak çalışma anında patlar.
     /// </summary>
     public enum Permission
     {
+        /// <summary>
+        /// Kabin diyagramını açıp okuyabilir (kategori: <c>Diagram</c>).
+        /// Sistemin en temel iznidir: diyagram bu üründe yalnızca bir çizim değil,
+        /// ham sinyalin anlam kazandığı yerdir — "kanal 7 = 1" ancak burada
+        /// "dış kapı hareket algıladı" olur.
+        /// </summary>
         ViewDiagram = 0,
+
+        /// <summary>
+        /// Diyagramı düzenleyip kaydedebilir: cihaz bırakma/taşıma/silme, kablo
+        /// çizme, not ekleme (kategori: <c>Diagram</c>).
+        /// <see cref="ViewDiagram"/>'dan ayrıdır çünkü sahayı izleyen operatör ile
+        /// kabini kuran teknisyen aynı kişi değildir; yanlış çizilmiş bir kablo
+        /// sinyalin anlamını sessizce değiştirir.
+        /// </summary>
         EditDiagram = 1,
+
+        /// <summary>
+        /// Çıkış kanalı sürebilir — röle, kilit, siren (kategori: <c>Control</c>).
+        /// <b>Sahaya fiziksel etki eden tek izin budur;</b> diğerlerinin tamamı
+        /// okuma ya da yapılandırmadır. <c>POST /api/Device/{id}/command</c>'in
+        /// karşılığıdır ve zorlanmaya başlandığında ilk bağlanacak yer orasıdır.
+        /// </summary>
         ControlOutput = 2,
+
+        /// <summary>
+        /// Alarmı görüp kabul edebilir (kategori: <c>Alarm</c>).
+        /// <b>Karşılığı olan bir modül henüz YOK:</b> alarm tablosu, üreteci ve
+        /// ucu yazılmadı. Üye, izin matrisi ileride alarm modülüyle birlikte
+        /// geldiğinde numarası kaymasın diye şimdiden yerini tutuyor.
+        /// </summary>
         AcknowledgeAlarm = 3,
+
+        /// <summary>
+        /// Kullanıcı ve rol yönetimi: hesap açma, rol atama, pasife alma
+        /// (kategori: <c>Admin</c>).
+        /// Kendi kendini büyüten bir izindir — bunu taşıyan bir hesap kendisine
+        /// başka her izni verebilir.
+        /// </summary>
         ManageUsers = 4,
+
+        /// <summary>
+        /// Sistem ve kabin yapılandırması: SCADA adresi, zaman aşımı, şablon
+        /// kütüphanesi (kategori: <c>Admin</c>).
+        /// <see cref="EditDiagram"/>'dan ayrıdır: o tek bir kabinin çizimini,
+        /// bu kabinin sahayla NASIL konuştuğunu değiştirir.
+        /// <c>Cabinet.ScadaBaseUrl</c>'i değiştirmek tüm telemetriyi ve kumandayı
+        /// başka bir adrese yönlendirir.
+        /// </summary>
         ConfigureSystem = 5,
+
+        /// <summary>
+        /// Kamera görüntüsü izleyebilir — anlık görüntü ve canlı yayın
+        /// (kategori: <c>Diagram</c>).
+        /// Kameralar diyagramda çizilmez ve verileri SCADA'dan gelmez, ama izin
+        /// kategorisi <c>Diagram</c>'dır: operatör için ikisi de "kabinde ne
+        /// oluyor" ekranının parçasıdır.
+        /// <b>Kamera haberleşmesi henüz kodlanmadı</b>, dolayısıyla bu iznin
+        /// koruyacağı bir uç de bugün yoktur.
+        /// </summary>
         ViewCamera = 6,
+
+        /// <summary>
+        /// Listeleri ve geçmişi dışa aktarabilir — kanal olayları, kumanda
+        /// geçmişi (kategori: <c>Data</c>).
+        /// Okuma izinlerinden AYRI tutulur: ekranda sayfa sayfa görmek ile tüm
+        /// geçmişi tek dosyada dışarı çıkarmak aynı risk değildir.
+        /// Dışa aktarma ucu henüz yazılmadı.
+        /// </summary>
         ExportData = 7,
+
+        /// <summary>
+        /// Otomasyon iş akışlarını tanımlar ve düzenler (kategori: <c>Admin</c>).
+        /// <b>Automation modülü henüz kodlanmadı</b> — tasarımı
+        /// <c>hibrit_uml.md</c>'de var, tablosu yok.
+        /// Hassas izindir: bir iş akışı, insan eli değmeden çıkış sürebilir,
+        /// yani <see cref="ControlOutput"/>'u dolaylı olarak kazandırır.
+        /// </summary>
         ManageWorkflow = 8,
 
         /// <summary>
-        /// Geçiş kartı tanımlama, yetkilendirme ve iptal etme.
+        /// Geçiş kartı tanımlama, yetkilendirme ve iptal etme
+        /// (kategori: <c>Access</c>).
         /// Hassas izindir — kabin kapısını açan kimliği yönetir.
-        /// PermissionDefinition seed'ine satır EKLENMELİDİR; unutulursa
-        /// RolePermission FK ihlali olarak çalışma anında patlar.
+        /// <b>Access modülü henüz kodlanmadı.</b>
+        /// <c>Permission</c> seed'ine satır EKLENMELİDİR; unutulursa
+        /// <c>RolePermission</c> FK ihlali olarak çalışma anında patlar.
         /// </summary>
         ManageAccessCards = 9
     }
