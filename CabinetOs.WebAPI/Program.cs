@@ -122,6 +122,34 @@ builder.Services.AddRateLimiter(options =>
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst
         });
     });
+
+    // Medya gecidinin kimlik dogrulama kancasi da AYRI politika ister ve
+    // politikanin VAR OLMASI sarttir — MediaGatewayController'daki
+    // [EnableRateLimiting("policy_mediamtx_auth")] tanimsiz bir ada isaret
+    // ederse middleware exception atar ve uc her istekte 500 doner.
+    // (policy_scada_ingest ile bir kez tam olarak bu yasandi.)
+    //
+    // Neden ayri: varsayilan politika 50 istek/10 sn ve IP'ye gore partition
+    // ediyor. MediaMTX localhost'tan cagirir, yani TUM kutucuklarin kancasi tek
+    // partition'a duser: 12 kameralik bir grid'in bir kez yenilenmesi 12 istek
+    // demek ve birkac yenilemede varsayilan butce tukenirdi.
+    int mediamtxAuthPermitLimit = builder.Configuration.GetValue<int?>("Mediamtx:AuthRateLimitPermitsPer10Seconds") ?? 300;
+
+    options.AddPolicy("policy_mediamtx_auth", httpContext =>
+    {
+        string partitionKey = $"mediamtx-ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+        return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = mediamtxAuthPermitLimit,
+            Window = TimeSpan.FromSeconds(10),
+            SegmentsPerWindow = 4,
+            // Kuyruk YOK: bekletilen bir kimlik dogrulama, gecidin el sikisma
+            // zaman asimina takilir — reddetmek daha durust.
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        });
+    });
 });
 #endregion
 
@@ -268,6 +296,47 @@ builder.Services.AddHttpClient(ScadaCommandGateway.HttpClientName, client =>
 {
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
+#endregion
+
+
+#region ------- Kamera / medya gecidi -------
+// Kameranin ISAPI istemcisi. Timeout yine SONSUZ ve zaman asimini gecit kendi
+// CancellationTokenSource'uyla uyguluyor — ScadaCommandGateway'le ayni gerekce:
+// HttpClient.Timeout da TaskCanceledException firlatir ve "kamera yavas" ile
+// "istek iptal edildi" ayni istisnaya duserdi.
+//
+// Resilience/retry handler'i BILEREK TAKILI DEGIL. Cevap vermeyen bir kameraya
+// otomatik tekrar denemek, zaten zorlanan cihaza ek yuk bindirmekten baska is
+// gormez; operator ACIKCA yeniden dener.
+builder.Services.AddHttpClient(IsapiSnapshotGateway.HttpClientName, client =>
+{
+    client.Timeout = Timeout.InfiniteTimeSpan;
+});
+
+// MediaMTX Control API istemcisi. SCADA'dan farkli olarak BaseAddress
+// kurulabiliyor: tek bir medya gecidi var ve adresi yapilandirmadan geliyor
+// (SCADA'da adres kabin basina degistigi icin bu mumkun degildi).
+//
+// Timeout burada ACIKCA veriliyor ve KISA. Varsayilan 100 saniyeydi; tarayici
+// tarafindaki axios ise 30 sn'de vazgeciyor. Yani gecit takildiginda kullanici
+// 30 sn donen bir kutucuk gorup pes ediyor, sunucu 70 sn daha bekliyor ve
+// olanlar hicbir yere yazilmiyordu — teshis edilemez bir sessizlik.
+//
+// 5 sn cok genis bir tavan: bu cagrilar olculdugunde 3-14 ms suruyor. Gecit
+// loopback'te ve yalnizca kucuk bir JSON yaziyor; 5 saniyeyi asiyorsa cevap
+// beklemenin degil, hatayi gostermenin zamanidir.
+builder.Services.AddHttpClient<IMediaGateway, MediaMtxGateway>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+// Cekim dosyalarinin diske yazilmasi. Business katmaninda DEGIL: IWebHostEnvironment
+// ve wwwroot barindirma detaylaridir (TemplateImageStore ile ayni gerekce).
+builder.Services.AddSingleton<ICaptureFileStore, CaptureFileStore>();
+
+// Klip, suresi kadar beklemek zorunda; HTTP istegini o kadar acik tutmak yerine
+// satir Pending yazilip is buraya dusuyor.
+builder.Services.AddHostedService<ClipCaptureWorker>();
 #endregion
 
 // JSON davranisi framework varsayilanina birakilmiyor, ACIKCA sabitleniyor. Ayrintili gerekce ve frontend karsiliklari: CabinetOs.Core/Utils/ApiJsonOptions.cs

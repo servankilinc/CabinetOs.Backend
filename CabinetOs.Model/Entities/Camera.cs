@@ -110,12 +110,11 @@ public class Camera : IEntity, IAuditableEntity, IActivatableEntity, IMonitoredA
     /// </summary>
     public bool SubStreamEnabled { get; set; }
 
-    /// <summary>
-    /// Kameranın encoder ayarı. <c>H265</c> ise canlı izleme ucu 400 döner:
-    /// tarayıcılar H.265 çözemez ve tek alternatif olan transcoding bilinçli
-    /// olarak yapılmıyor. Bkz. <see cref="VideoCodec"/>.
-    /// </summary>
-    public VideoCodec VideoCodec { get; set; }
+    // Kodek KOLON DEĞİLDİR. Kameralar sahada H.264'e ayarlanır ve transcoding
+    // bilinçli olarak yapılmıyor; dolayısıyla saklanacak bir seçenek yok.
+    // Kamera H.265 yayınlarsa tarayıcı çözemez ve görüntü siyah kalır — teşhis
+    // kameranın kendi arayüzünden yapılır. Bir kolon tutmak, kod hiçbir yerde
+    // ona bakmadığı için yalnızca yanlış olabilecek bir kopya üretirdi.
 
     // ─── Anlık görüntü ───
 

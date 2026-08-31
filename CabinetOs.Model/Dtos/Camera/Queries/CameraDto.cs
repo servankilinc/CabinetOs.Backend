@@ -1,5 +1,4 @@
 using CabinetOs.Core.Model;
-using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Model.Dtos.Camera.Queries;
 
@@ -44,7 +43,6 @@ public class CameraDto : IDto
     public int SubStreamChannel { get; set; }
     public bool MainStreamEnabled { get; set; }
     public bool SubStreamEnabled { get; set; }
-    public VideoCodec VideoCodec { get; set; }
     public int SnapshotChannel { get; set; }
 
     public int? MonitoringPort { get; set; }

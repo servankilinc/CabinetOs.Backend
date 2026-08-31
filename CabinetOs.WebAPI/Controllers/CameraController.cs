@@ -2,6 +2,7 @@ using CabinetOs.Business.Abstract;
 using CabinetOs.Model.Dtos.Camera.Commands;
 using CabinetOs.WebAPI.Controllers.Base;
 using Microsoft.AspNetCore.Mvc;
+using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.WebAPI.Controllers;
 
@@ -66,6 +67,65 @@ public class CameraController : BaseController
     public async Task<IActionResult> RecordProbeResult(Guid id, CameraProbeResultDto request, CancellationToken cancellationToken)
     {
         var result = await _cameraService.RecordProbeResultAsync(id, request, cancellationToken);
+        return ToAction(result);
+    }
+
+    /// <summary>
+    /// Canli izleme bileti.
+    ///
+    /// Govde YOK: istenen tek sey profil ve o da sorgu dizesinde. Bilet
+    /// uretmek bir YAN ETKIDIR (medya gecidinde yol kurulur, onbellege kayit
+    /// yazilir), dolayisiyla GET degil POST.
+    ///
+    /// Donen govdede RTSP adresi ve kamera parolasi <b>yoktur</b>.
+    /// </summary>
+    [HttpPost("{id:guid}/stream-ticket")]
+    public async Task<IActionResult> CreateStreamTicket(Guid id, [FromQuery] StreamProfile profile, CancellationToken cancellationToken)
+    {
+        var result = await _cameraService.CreateStreamTicketAsync(id, profile, cancellationToken);
+        return ToAction(result);
+    }
+
+    /// <summary>
+    /// Anlik goruntu — <b>satir yazmaz</b>, canli onizleme icindir.
+    ///
+    /// <b>Bu aksiyon <c>ToAction</c> ile BITMEYEN tek aksiyondur</b> ve bu
+    /// bilincli bir istisnadir: govdesi bir DTO degil ikili veridir, bir
+    /// zarfa sarilamaz. Hata yolu yine <c>ToAction</c>'dan gecer, yani
+    /// basarisizlik normal ProblemDetails sozlesmesini korur.
+    /// </summary>
+    /// <param name="fresh">
+    /// <c>true</c> ise kisa omurlu onbellek atlanir ve kameradan taze kare istenir.
+    /// </param>
+    [HttpGet("{id:guid}/snapshot")]
+    public async Task<IActionResult> GetSnapshot(Guid id, [FromQuery] bool fresh, CancellationToken cancellationToken)
+    {
+        var result = await _cameraService.GetSnapshotAsync(id, fresh, cancellationToken);
+        if (!result.IsSuccess) return ToAction(result);
+
+        return File(result.Data.Content, result.Data.ContentType);
+    }
+
+    /// <summary>
+    /// Delil cekimi — diske yazar ve bir <c>CameraCapture</c> satiri birakir.
+    ///
+    /// Anlik goruntu senkron tamamlanir; klip <c>Pending</c> doner ve arka
+    /// planda surer. <b>Basarisiz cekim de 200 doner</b>: istek gecerliydi ve
+    /// bir satir olustu; basarisizlik <c>status</c> alanindadir. 500 donmek,
+    /// istemcinin "kayit olustu mu" sorusunu cevapsiz birakirdi.
+    /// </summary>
+    [HttpPost("{id:guid}/capture")]
+    public async Task<IActionResult> CreateCapture(Guid id, CameraCaptureCreateDto request, CancellationToken cancellationToken)
+    {
+        var result = await _cameraService.CreateCaptureAsync(id, request, cancellationToken);
+        return ToAction(result);
+    }
+
+    /// <summary>Kameranin son cekimleri, yeniden eskiye.</summary>
+    [HttpGet("{id:guid}/captures")]
+    public async Task<IActionResult> GetCaptures(Guid id, [FromQuery] int take, CancellationToken cancellationToken)
+    {
+        var result = await _cameraService.GetCapturesAsync(id, take <= 0 ? 20 : take, cancellationToken);
         return ToAction(result);
     }
 }

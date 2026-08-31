@@ -1,7 +1,6 @@
 using CabinetOs.Core.Model;
 using CabinetOs.Core.Utils.CriticalData;
 using FluentValidation;
-using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Model.Dtos.Camera.Commands;
 
@@ -38,7 +37,6 @@ public class CameraCreateDto : IDto, ICameraWritableFields
     public int SubStreamChannel { get; set; } = 102;
     public bool MainStreamEnabled { get; set; } = true;
     public bool SubStreamEnabled { get; set; } = true;
-    public VideoCodec VideoCodec { get; set; } = VideoCodec.H264;
     public int SnapshotChannel { get; set; } = 101;
 
     /// <summary>Yoklama sondasinin portu; bos birakilirsa RTSP portu kullanilir.</summary>
@@ -82,7 +80,6 @@ internal static class CameraRules
         v.RuleFor(x => x.MainStreamChannel).GreaterThan(0).WithMessage("Ana akım kanalı sıfırdan büyük olmalı");
         v.RuleFor(x => x.SubStreamChannel).GreaterThan(0).WithMessage("Tali akım kanalı sıfırdan büyük olmalı");
         v.RuleFor(x => x.SnapshotChannel).GreaterThan(0).WithMessage("Anlık görüntü kanalı sıfırdan büyük olmalı");
-        v.RuleFor(x => x.VideoCodec).IsInEnum().WithMessage("Geçersiz video codec");
 
         // En az bir akim acik olmali; ikisi de kapaliysa kamera hic izlenemez ve
         // arayuz sebebini gosteremez.
@@ -117,7 +114,6 @@ public interface ICameraWritableFields
     int SnapshotChannel { get; }
     bool MainStreamEnabled { get; }
     bool SubStreamEnabled { get; }
-    VideoCodec VideoCodec { get; }
     int PingIntervalSec { get; }
     string? Username { get; }
     string? Manufacturer { get; }

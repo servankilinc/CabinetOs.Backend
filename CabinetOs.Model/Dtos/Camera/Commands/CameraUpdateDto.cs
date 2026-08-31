@@ -1,7 +1,6 @@
 using CabinetOs.Core.Model;
 using CabinetOs.Core.Utils.CriticalData;
 using FluentValidation;
-using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Model.Dtos.Camera.Commands;
 
@@ -43,7 +42,6 @@ public class CameraUpdateDto : IDto, ICameraWritableFields
     public int SubStreamChannel { get; set; }
     public bool MainStreamEnabled { get; set; }
     public bool SubStreamEnabled { get; set; }
-    public VideoCodec VideoCodec { get; set; }
     public int SnapshotChannel { get; set; }
 
     public int? MonitoringPort { get; set; }

@@ -300,20 +300,10 @@ public static class EntityEnums
     }
 
 
-    /// <summary>
-    /// Kameranın video akışında kullandığı sıkıştırma.
-    ///
-    /// Neden kolon olarak saklanıyor: canlı izleme WebRTC üzerinden gider ve
-    /// tarayıcılarda <b>H.265 desteği yoktur</b>. Bu alan, H.265'e ayarlı bir
-    /// kameranın izleme ucundan sessizce transcode edilmek yerine AÇIKÇA
-    /// reddedilmesini sağlar — medya geçidinde transcoding yapmamak bu turun
-    /// bağlayıcı kararlarından biridir (düşük gecikme + düşük CPU).
-    /// </summary>
-    public enum VideoCodec
-    {
-        H264 = 1,
-        H265 = 2
-    }
+    // VideoCodec enum'u KALDIRILDI. Sahada yalnızca H.264 kullanılıyor ve medya
+    // geçidinde transcoding yapılmıyor; dolayısıyla seçilecek bir şey yoktu ve
+    // hiçbir kod yolu bu alana bakmıyordu. Kodek artık bir veri alanı değil,
+    // kurulum varsayımıdır — kameralar H.264'e ayarlanır.
 
     /// <summary>
     /// Hangi akışın izleneceği.
@@ -341,7 +331,12 @@ public static class EntityEnums
     {
         /// <summary>Tek kare JPEG (~150 KB).</summary>
         Snapshot = 1,
-        /// <summary>Kısa video klip — bu turda YAZAN KOD YOKTUR, şema hazırdır.</summary>
+        /// <summary>
+        /// Kısa video klip. Medya geçidine kayıt açan geçici bir yol kurulup
+        /// <c>DurationSec</c> kadar beklenerek üretilir; olay ÖNCESİNİ kapsamaz
+        /// (öncesi için sürekli dönen bir kayıt tamponu gerekirdi, o da
+        /// "7/24 kayıt yapılmaz" kararıyla çakışırdı).
+        /// </summary>
         Clip = 2
     }
 

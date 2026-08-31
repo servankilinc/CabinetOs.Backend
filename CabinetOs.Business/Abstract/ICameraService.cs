@@ -2,6 +2,7 @@ using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Dtos.Camera.Commands;
 using CabinetOs.Model.Dtos.Camera.Queries;
 using CabinetOs.Model.Dtos.Common;
+using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Business.Abstract;
 
@@ -47,4 +48,40 @@ public interface ICameraService
     /// ayakta bir kamera sifir UPDATE uretir.
     /// </summary>
     Task<Result> RecordProbeResultAsync(Guid cameraId, CameraProbeResultDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Canli izleme bileti uretir ve medya gecidinde ilgili yolu kurar.
+    ///
+    /// <b>Donen govdede RTSP adresi, kullanici adi veya parola YOKTUR.</b>
+    /// Bilet yola baglidir ve kisa omurludur.
+    /// </summary>
+    Task<Result<StreamTicketDto>> CreateStreamTicketAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Medya gecidinin sordugu bileti dogrular. Yalnizca
+    /// <c>MediaGatewayController</c> cagirir.
+    /// </summary>
+    Task<bool> ValidateStreamTicketAsync(string? path, string? ticket, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Anlik goruntu — <b>satir YAZMAZ</b>. Kisa omurlu onbellek ve kamera
+    /// basina tek ucus kilidi vardir.
+    /// </summary>
+    Task<Result<SnapshotPayload>> GetSnapshotAsync(Guid cameraId, bool fresh = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Delil cekimi — diske yazar ve <c>CameraCapture</c> satiri birakir.
+    /// Anlik goruntu senkron tamamlanir; klip <c>Pending</c> doner ve arka
+    /// planda surer.
+    /// </summary>
+    Task<Result<CameraCaptureDto>> CreateCaptureAsync(Guid cameraId, CameraCaptureCreateDto request, CancellationToken cancellationToken = default);
+
+    /// <summary>Kameranin son cekimleri, yeniden eskiye.</summary>
+    Task<Result<ICollection<CameraCaptureDto>>> GetCapturesAsync(Guid cameraId, int take = 20, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Kuyruga alinmis bir klip cekimini yurutur. Yalnizca
+    /// <c>ClipCaptureWorker</c> cagirir; HTTP yolundan erisilmez.
+    /// </summary>
+    Task RunClipCaptureAsync(long captureId, CancellationToken cancellationToken = default);
 }

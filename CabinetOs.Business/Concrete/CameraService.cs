@@ -1,4 +1,6 @@
 using CabinetOs.Business.Abstract;
+using CabinetOs.Business.Settings;
+using CabinetOs.Core.Utils.HttpContextManager;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
@@ -6,15 +8,21 @@ using CabinetOs.Model.Dtos.Camera.Commands;
 using CabinetOs.Model.Dtos.Camera.Queries;
 using CabinetOs.Model.Dtos.Common;
 using CabinetOs.Model.Entities;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 
 namespace CabinetOs.Business.Concrete;
 
 /// <summary>
 /// Kamera yonetiminin okuma ve yazma yolu.
 ///
-/// Izleme (yoklama sonucu yazma) ayri bir dosyada: <c>CameraService.Monitoring.cs</c>.
-/// Kod tabaninin konvansiyonu bu — <c>#region</c> yerine dosya siniri
-/// (bkz. <c>DiagramService.*</c>, <c>DeviceCommandService.*</c>).
+/// Diger concerns ayri dosyalarda — kod tabaninin konvansiyonu bu, <c>#region</c>
+/// yerine dosya siniri (bkz. <c>DiagramService.*</c>, <c>DeviceCommandService.*</c>):
+/// <list type="bullet">
+/// <item><c>CameraService.Monitoring.cs</c> — yoklama sonucunun yazilmasi</item>
+/// <item><c>CameraService.Streaming.cs</c> — canli izleme bileti</item>
+/// <item><c>CameraService.Capture.cs</c> — anlik goruntu ve cekim</item>
+/// </list>
 ///
 /// Sozlesme: <c>docs/api-contract/11-camera.md</c>
 /// </summary>
@@ -22,11 +30,40 @@ public partial class CameraService : ICameraService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
+    private readonly IMediaGateway _mediaGateway;
+    private readonly ISnapshotGateway _snapshotGateway;
+    private readonly ICaptureFileStore _captureFileStore;
+    private readonly IClipCaptureQueue _clipCaptureQueue;
+    private readonly IDistributedCache _cache;
+    private readonly MediaMtxSettings _mediaMtxSettings;
+    private readonly CameraCaptureSettings _captureSettings;
+    private readonly IHttpContextManager _httpContextManager;
+    private readonly ILogger<CameraService> _logger;
 
-    public CameraService(IUnitOfWork unitOfWork, IValidationService validationService)
+    public CameraService(
+        IUnitOfWork unitOfWork,
+        IValidationService validationService,
+        IMediaGateway mediaGateway,
+        ISnapshotGateway snapshotGateway,
+        ICaptureFileStore captureFileStore,
+        IClipCaptureQueue clipCaptureQueue,
+        IDistributedCache cache,
+        MediaMtxSettings mediaMtxSettings,
+        CameraCaptureSettings captureSettings,
+        IHttpContextManager httpContextManager,
+        ILogger<CameraService> logger)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
+        _mediaGateway = mediaGateway;
+        _snapshotGateway = snapshotGateway;
+        _captureFileStore = captureFileStore;
+        _clipCaptureQueue = clipCaptureQueue;
+        _cache = cache;
+        _mediaMtxSettings = mediaMtxSettings;
+        _captureSettings = captureSettings;
+        _httpContextManager = httpContextManager;
+        _logger = logger;
     }
 
     public async Task<Result<ICollection<CameraDto>>> GetListAsync(Guid cabinetId, bool includePassive = false, CancellationToken cancellationToken = default)
@@ -101,7 +138,6 @@ public partial class CameraService : ICameraService
             SubStreamChannel = request.SubStreamChannel,
             MainStreamEnabled = request.MainStreamEnabled,
             SubStreamEnabled = request.SubStreamEnabled,
-            VideoCodec = request.VideoCodec,
             SnapshotChannel = request.SnapshotChannel,
             // Bos birakilirsa RTSP portu: kamerada anlamli sonda, servis portuna
             // TCP connect'tir (bkz. IMonitoredAsset.MonitoringPort).
@@ -136,6 +172,24 @@ public partial class CameraService : ICameraService
         var conflict = await CheckUniquenessAsync(camera.CabinetId, request.Name, request.IpAddress, excludeId: camera.Id, cancellationToken);
         if (conflict != null) return Result.Validation(conflict, description: "Camera uniqueness violated");
 
+        // Medya gecidindeki yol, kameranin adresini VE PAROLASINI icinde tasir.
+        // Bu alanlardan biri degistiginde ya da kamera pasife alindiginda yol
+        // bayatlamis olur: pasif bir kameranin parolasi MediaMTX'in calisan
+        // yapilandirmasinda asili kalmamali, degisen bir adres de eski degerle
+        // baglanmaya devam etmemeli.
+        //
+        // Yol SILINIR, guncellenmez: bir sonraki bilet istegi onu zaten guncel
+        // degerlerle yeniden kurar (EnsureLivePathAsync kendi kendini onarir).
+        bool connectionChanged =
+            camera.IpAddress != request.IpAddress ||
+            camera.RtspPort != request.RtspPort ||
+            camera.Username != request.Username ||
+            camera.MainStreamChannel != request.MainStreamChannel ||
+            camera.SubStreamChannel != request.SubStreamChannel ||
+            (request.Password != null && camera.Password != (request.Password.Length == 0 ? null : request.Password));
+
+        bool deactivated = camera.IsActive && !request.IsActive;
+
         camera.Name = request.Name;
         camera.Description = request.Description;
         camera.Manufacturer = request.Manufacturer;
@@ -149,7 +203,6 @@ public partial class CameraService : ICameraService
         camera.SubStreamChannel = request.SubStreamChannel;
         camera.MainStreamEnabled = request.MainStreamEnabled;
         camera.SubStreamEnabled = request.SubStreamEnabled;
-        camera.VideoCodec = request.VideoCodec;
         camera.SnapshotChannel = request.SnapshotChannel;
         camera.MonitoringPort = request.MonitoringPort ?? request.RtspPort;
         camera.PingIntervalSec = request.PingIntervalSec;
@@ -169,6 +222,13 @@ public partial class CameraService : ICameraService
             camera.Password = request.Password.Length == 0 ? null : request.Password;
 
         await _unitOfWork.Cameras.UpdateAndSaveAsync(camera, cancellationToken);
+
+        // Kayit basariyla yazildiktan SONRA temizlik yapiliyor: gecit erisilemez
+        // olsa bile kullanicinin duzenlemesi kaybolmamali. Bu yuzden sonuc da
+        // yutuluyor — yol silinememesi, guncellemeyi basarisiz saymaz.
+        if (connectionChanged || deactivated)
+            await RemoveLivePathsAsync(camera, cancellationToken);
+
         return Result.Success();
     }
 
@@ -238,7 +298,6 @@ public partial class CameraService : ICameraService
         SubStreamChannel = c.SubStreamChannel,
         MainStreamEnabled = c.MainStreamEnabled,
         SubStreamEnabled = c.SubStreamEnabled,
-        VideoCodec = c.VideoCodec,
         SnapshotChannel = c.SnapshotChannel,
         MonitoringPort = c.MonitoringPort,
         DeviceStatusId = c.DeviceStatusId,

@@ -40,6 +40,32 @@ namespace CabinetOs.Business
             services.AddScoped<ICameraService, CameraService>();
             services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();
 
+            #region KAMERA / MEDYA
+            // Ayarlar baglanip SINGLETON olarak kaydediliyor — TokenSettings ve
+            // CacheSettings ile ayni desen. IOptions<T> kod tabaninda hic
+            // kullanilmiyor; tek bir yerde acmak "hangisi dogru" sorusunu kalici
+            // hale getirirdi.
+            services.AddSingleton(
+                configuration.GetSection(Settings.MediaMtxSettings.SectionName).Get<Settings.MediaMtxSettings>()
+                ?? new Settings.MediaMtxSettings());
+
+            services.AddSingleton(
+                configuration.GetSection(Settings.CameraCaptureSettings.SectionName).Get<Settings.CameraCaptureSettings>()
+                ?? new Settings.CameraCaptureSettings());
+
+            // Marka basina URL sablonlari. IEnumerable olarak cozulur: ikinci bir
+            // marka geldiginde tek satirlik bir kayit yeter, cagri yerlerine
+            // dokunulmaz (bkz. Camera.Manufacturer XML dokumani).
+            services.AddSingleton<ICameraProtocolProfile, HikvisionProtocolProfile>();
+            services.AddSingleton<ICameraProtocolProfileResolver, CameraProtocolProfileResolver>();
+
+            services.AddScoped<ISnapshotGateway, IsapiSnapshotGateway>();
+
+            // Klip kuyrugu SINGLETON olmak zorunda: uc onu doldurur, hosted
+            // service bosaltir. Scoped olsaydi ikisi ayri kuyruk gorurdu.
+            services.AddSingleton<IClipCaptureQueue, ClipCaptureQueue>();
+            #endregion
+
             return services;
         }
     }
