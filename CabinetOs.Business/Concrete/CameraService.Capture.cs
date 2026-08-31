@@ -242,7 +242,17 @@ public partial class CameraService
 
         int duration = capture.DurationSec ?? 0;
         string pathName = IMediaGateway.ClipPathName(captureId);
-        string tempFolder = Path.Combine(_mediaMtxSettings.RecordRoot, captureId.ToString());
+
+        // Klasor adi YOL ADINDAN turer, captureId'den DEGIL: MediaMTX
+        // recordPath'teki %path yer tutucusunu yol adiyla doldurur. Ikisi
+        // ayrisirsa gecit clip_42/ altina yazar, biz 42/ klasorune bakar ve
+        // "dosya uretmedi" deriz.
+        string tempFolder = Path.Combine(_mediaMtxSettings.RecordRoot, pathName);
+
+        // Yol GERCEKTEN kuruldu mu? finally'deki temizlik buna bakiyor:
+        // kurulmamis bir yolu silmeye calismak MediaMTX log'una gereksiz bir
+        // "path not found" ERR satiri dusurur ve gercek hatayi golgeler.
+        bool pathCreated = false;
 
         try
         {
@@ -250,7 +260,13 @@ public partial class CameraService
             // dosyaya duser. Esit olsaydi rotasyon tam sinirda gerceklesip
             // goruntuyu iki dosyaya bolebilirdi.
             string segmentDuration = $"{duration + (_captureSettings.ClipFinalizeGraceMs / 1000) + 5}s";
-            string recordPath = Path.Combine(tempFolder, "%Y-%m-%d_%H-%M-%S-%f").Replace('\\', '/');
+
+            // recordPath %path ICERMEK ZORUNDA — MediaMTX aksi halde
+            // yapilandirmayi reddeder ("'recordPath' must contain %path") ve
+            // kayit hic baslamaz. Yer tutucuyu kendimiz cozup yola gomemeyiz:
+            // dogrulama literal olarak "%path" metnini arar.
+            string recordPath = Path.Combine(_mediaMtxSettings.RecordRoot, "%path", "%Y-%m-%d_%H-%M-%S-%f")
+                .Replace('\\', '/');
 
             var ensureResult = await _mediaGateway.EnsureClipPathAsync(
                 camera, captureId, recordPath, segmentDuration, cancellationToken);
@@ -260,6 +276,8 @@ public partial class CameraService
                 await FailCaptureAsync(capture, ensureResult.Error.Description, cancellationToken);
                 return;
             }
+
+            pathCreated = true;
 
             // Kaydin FIILEN basladigi an. Istek anindaki degeri birakmak,
             // CapturedAtUtc'yi birkac saniye yanlislardi — ve bu kolon
@@ -301,9 +319,14 @@ public partial class CameraService
         }
         finally
         {
-            // Yol her kosulda dusurulmeli: birakilirsa kameradan surekli akis
-            // cekmeye ve diske yazmaya devam ederdi.
-            await _mediaGateway.DeletePathAsync(pathName, CancellationToken.None);
+            // Kurulmus bir yol HER KOSULDA dusurulmeli: birakilirsa kameradan
+            // surekli akis cekmeye ve diske yazmaya devam ederdi. Yukaridaki
+            // basarili yolda zaten silindi, buradaki cagri hata/iptal
+            // durumlarinin guvenlik agi (DeletePathAsync 404'u basari sayiyor,
+            // yani iki kez silmek zararsiz).
+            if (pathCreated)
+                await _mediaGateway.DeletePathAsync(pathName, CancellationToken.None);
+
             _captureFileStore.TryDeleteDirectory(tempFolder);
         }
     }

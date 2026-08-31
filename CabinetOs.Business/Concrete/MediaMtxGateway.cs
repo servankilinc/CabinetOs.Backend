@@ -55,7 +55,8 @@ public class MediaMtxGateway : IMediaGateway
             ["rtspTransport"] = _settings.RtspTransport
         };
 
-        return UpsertPathAsync(IMediaGateway.LivePathName(camera.Id, profile), payload, cancellationToken);
+        // Canli yol: ONCE SOR. Gerekcesi asagida, EnsureUnchangedOrWriteAsync'te.
+        return EnsureUnchangedOrWriteAsync(IMediaGateway.LivePathName(camera.Id, profile), payload, cancellationToken);
     }
 
     public Task<Result> EnsureClipPathAsync(
@@ -87,7 +88,18 @@ public class MediaMtxGateway : IMediaGateway
             ["recordDeleteAfter"] = "0s"
         };
 
-        return UpsertPathAsync(IMediaGateway.ClipPathName(captureId), payload, cancellationToken);
+        // Klip yolu DOGRUDAN yazilir, canli yoldaki gibi once sorulmaz.
+        //
+        // Ad her cekimde benzersiz (clip_{captureId}), yani yol normalde HIC
+        // var olmaz — sormak her klipte bir 404 uretir ve MediaMTX onu ERR
+        // seviyesinde loglar. Gercek bir sorun degil ama gercek bir sorun gibi
+        // gorunup teshisi zorlastiriyordu.
+        //
+        // Canli yolda "once sor" olmasinin sebebi buradaki durumu kapsamiyor:
+        // orada replace calisan bir yayini kopartiyordu. Klip yolunun izleyicisi
+        // yoktur, dolayisiyla add->replace burada zararsiz — ustelik onceki bir
+        // cokmeden kalmis bir yolu da kendiliginden onarir.
+        return AddOrReplacePathAsync(IMediaGateway.ClipPathName(captureId), payload, cancellationToken);
     }
 
     /// <summary>
@@ -108,8 +120,13 @@ public class MediaMtxGateway : IMediaGateway
     /// yakalandi.)
     ///
     /// Fazladan bir GET'in bedeli olculdu: Control API cagrilari 3-14 ms.
+    ///
+    /// <b>Yalnizca CANLI yollar icindir.</b> Klip yolu her cekimde benzersiz bir
+    /// ad alir ve hicbir zaman onceden var olmaz; orada sormak yalnizca bos bir
+    /// 404 (ve MediaMTX log'unda bir ERR satiri) uretirdi —
+    /// bkz. <see cref="AddOrReplacePathAsync"/>.
     /// </summary>
-    private async Task<Result> UpsertPathAsync(
+    private async Task<Result> EnsureUnchangedOrWriteAsync(
         string pathName, Dictionary<string, object?> payload, CancellationToken cancellationToken)
     {
         try
@@ -147,6 +164,51 @@ public class MediaMtxGateway : IMediaGateway
         {
             // Gecit ayakta degil. Kullaniciya gosterilecek en yararli bilgi bu:
             // kamera degil, MediaMTX calismiyor.
+            _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", _httpClient.BaseAddress);
+            return Result.Failure(description: "Medya geçidine ulaşılamıyor. MediaMTX çalışmıyor olabilir.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(exception, "Medya gecidi yolu yazilirken beklenmeyen hata: {PathName}", pathName);
+            return Result.Failure(description: "Medya geçidi yapılandırılamadı.");
+        }
+    }
+
+    /// <summary>
+    /// Yolu dogrudan ekler; zaten varsa degistirir.
+    ///
+    /// <b>Yalnizca izleyicisi olmayan yollar icin</b> (bugun: klip). Canli yolda
+    /// kullanilamaz — <c>replace</c> bir yapilandirma yeniden yuklemesi tetikler
+    /// ve o an izleyen oturumlari dusurur; canli taraf bu yuzden
+    /// <see cref="EnsureUnchangedOrWriteAsync"/> kullanir.
+    ///
+    /// <c>add</c> once deneniyor cunku burada normal durum GERCEKTEN odur:
+    /// klip yolunun adi her cekimde benzersizdir. <c>replace</c>'e dusmek ancak
+    /// onceki bir cokmeden yol kalmissa gerekir ve o durumu kendiliginden onarir.
+    /// </summary>
+    private async Task<Result> AddOrReplacePathAsync(
+        string pathName, Dictionary<string, object?> payload, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var addResponse = await _httpClient.PostAsJsonAsync($"v3/config/paths/add/{pathName}", payload, cancellationToken);
+            if (addResponse.IsSuccessStatusCode) return Result.Success();
+
+            string addError = await ReadErrorAsync(addResponse, cancellationToken);
+
+            if (!addError.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                return Result.Failure(description: $"Medya geçidi yolu oluşturulamadı: {addError}");
+
+            return await WritePathAsync("replace", pathName, payload, cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogError("Medya gecidi {Timeout} sn icinde yanit vermedi ({BaseAddress})",
+                _httpClient.Timeout.TotalSeconds, _httpClient.BaseAddress);
+            return Result.Failure(description: "Medya geçidi yanıt vermiyor.");
+        }
+        catch (HttpRequestException exception)
+        {
             _logger.LogError(exception, "Medya gecidine ulasilamadi ({BaseAddress})", _httpClient.BaseAddress);
             return Result.Failure(description: "Medya geçidine ulaşılamıyor. MediaMTX çalışmıyor olabilir.");
         }
