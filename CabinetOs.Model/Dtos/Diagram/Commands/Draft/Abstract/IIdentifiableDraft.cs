@@ -1,4 +1,4 @@
-namespace CabinetOs.Model.Dtos.Diagram.Commands.Abstract;
+namespace CabinetOs.Model.Dtos.Diagram.Commands.Draft.Abstract;
 
 /// <summary>
 /// Diyagram taslaklarinin ortak sozlesmesi: hepsi bir <c>Id</c> tasir ve bu Id'yi

@@ -15,7 +15,7 @@ namespace CabinetOs.WebAPI.Utils;
 /// <b>Sonucu acikca:</b> buraya yazilan dosyalar <c>UseStaticFiles</c> ile
 /// KIMLIK DOGRULAMASIZ servis edilir; URL'yi bilen goruntuyu indirebilir.
 /// Tek engel dosya adinin tahmin edilemez bir <c>Guid</c> olmasidir. Desen
-/// <c>CameraCapture.StorageKey</c>'in XML dokumaninda ilan edilmis ve sistem
+/// <c>CameraCapture.RelativePath</c>'in XML dokumaninda ilan edilmis ve sistem
 /// kapali agda calisiyor. Yetkili bir uctan servis istenirse degisecek tek yer
 /// asagidaki <c>WebRootPath</c> secimi ve buna eslik edecek yeni bir uctur.
 /// </summary>
@@ -45,9 +45,9 @@ public sealed class CaptureFileStore : ICaptureFileStore
 
         try
         {
-            var (fullPath, storageKey) = BuildTargetPath(extension);
+            var (fullPath, relativePath) = BuildTargetPath(extension);
             await File.WriteAllBytesAsync(fullPath, content, cancellationToken);
-            return Result<StoredCapture>.Success(new StoredCapture(storageKey, content.LongLength));
+            return Result<StoredCapture>.Success(new StoredCapture(relativePath, content.LongLength));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -64,7 +64,7 @@ public sealed class CaptureFileStore : ICaptureFileStore
                 return Task.FromResult(Result<StoredCapture>.Failure(description: "Klip dosyası bulunamadı."));
 
             long size = new FileInfo(sourceFullPath).Length;
-            var (fullPath, storageKey) = BuildTargetPath(".mp4");
+            var (fullPath, relativePath) = BuildTargetPath(".mp4");
 
             // KOPYALAMA DEGIL TASIMA: klip dosyasi onlarca MB olabilir ve kaynak
             // zaten silinecek gecici bir dizinde. Kopyalamak diski gereksiz yere
@@ -74,7 +74,7 @@ public sealed class CaptureFileStore : ICaptureFileStore
             // yalnizca dizin girdisini gunceller.
             File.Move(sourceFullPath, fullPath, overwrite: false);
 
-            return Task.FromResult(Result<StoredCapture>.Success(new StoredCapture(storageKey, size)));
+            return Task.FromResult(Result<StoredCapture>.Success(new StoredCapture(relativePath, size)));
         }
         catch (Exception exception)
         {
@@ -105,7 +105,7 @@ public sealed class CaptureFileStore : ICaptureFileStore
     /// on binlerce dosya, dizin listeleme islemlerini dakikalar suren hale
     /// getirir.
     /// </summary>
-    private (string FullPath, string StorageKey) BuildTargetPath(string extension)
+    private (string FullPath, string RelativePath) BuildTargetPath(string extension)
     {
         string relativeFolder = $"{_settings.CaptureRoot.Trim('/')}/{DateTime.UtcNow:yyyy/MM/dd}";
         string fileName = $"{Guid.NewGuid():N}{extension}";
@@ -114,9 +114,9 @@ public sealed class CaptureFileStore : ICaptureFileStore
         string folder = Path.Combine(webRoot, relativeFolder.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(folder);
 
-        // StorageKey her zaman GORELI ve ileri bolu isaretli: tam URL saklamak,
+        // Deger her zaman GORELI ve ileri bolu isaretli: tam URL saklamak,
         // depo tasindiginda binlerce satirin guncellenmesi demekti
-        // (bkz. CameraCapture.StorageKey).
+        // (bkz. CameraCapture.RelativePath).
         return (Path.Combine(folder, fileName), $"{relativeFolder}/{fileName}");
     }
 }

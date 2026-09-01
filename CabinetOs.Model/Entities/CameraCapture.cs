@@ -11,7 +11,7 @@ namespace CabinetOs.Model.Entities;
 /// kenarda (kameranın SD kartı / NVR) kalır, merkeze yalnızca olay anı çekilir.
 ///
 /// İkili veri DB'de DURMAZ. Bu satır yalnızca indekstir; dosya
-/// <see cref="StorageKey"/>'in gösterdiği yerdedir.
+/// <see cref="RelativePath"/>'in gösterdiği yerdedir.
 ///
 /// Sözleşme: <c>docs/api-contract/11-camera.md</c>
 /// </summary>
@@ -56,19 +56,20 @@ public class CameraCapture : IEntity
     public int? DurationSec { get; set; }
 
     /// <summary>
-    /// Dosyanın depo anahtarı — bugün <c>wwwroot</c> altında göreli yol
+    /// Dosyanın <c>wwwroot</c>'a göre GÖRELİ yolu
     /// (örn: <c>uploads/captures/2026/08/27/{guid}.jpg</c>), şablon
     /// görselleriyle aynı desen.
     ///
     /// <b>Tam URL saklanmaz</b>: şema, host ve kök dizin yapılandırmadan gelir;
     /// her satıra yazılsaydı depo taşındığında binlerce satırın güncellenmesi
-    /// gerekirdi. Kolon adının "path" değil <c>StorageKey</c> olması bilinçli —
-    /// ileride bir obje deposuna (S3/MinIO) geçmek ŞEMA DEĞİŞTİRMEZ.
+    /// gerekirdi. Değerin göreli olması bu yüzden korunur — ileride bir obje
+    /// deposuna (S3/MinIO) geçilirse aynı kolon nesne anahtarını taşır ve
+    /// ŞEMA DEĞİŞMEZ; değişen tek şey yolun nasıl çözümlendiğidir.
     ///
     /// <see cref="CaptureStatus.Pending"/> ve <see cref="CaptureStatus.Failed"/>
     /// iken <c>null</c>'dır.
     /// </summary>
-    public string? StorageKey { get; set; }
+    public string? RelativePath { get; set; }
 
     /// <summary>Dosya boyutu (byte) — yükleme tamamlanınca dolar. GSM kotası raporu bu kolondan çıkar.</summary>
     public long? SizeBytes { get; set; }

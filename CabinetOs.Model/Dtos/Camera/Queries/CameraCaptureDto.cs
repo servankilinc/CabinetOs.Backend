@@ -9,7 +9,7 @@ namespace CabinetOs.Model.Dtos.Camera.Queries;
 /// Ayna: <c>Frontend/src/models/camera/queries/cameraCaptureDto.ts</c>
 ///
 /// <b>Basarisiz cekim de bir satirdir</b> (<c>Status = Failed</c>,
-/// <c>FailureReason</c> dolu, <c>StorageKey</c> null): "o anda goruntu YOK"
+/// <c>FailureReason</c> dolu, <c>RelativePath</c> null): "o anda goruntu YOK"
 /// bilgisinin kendisi delildir ve satiri hic yazmamak o bilgiyi silerdi.
 /// </summary>
 public class CameraCaptureDto : IDto

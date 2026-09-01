@@ -1,5 +1,5 @@
 using CabinetOs.Core.Model;
-using CabinetOs.Model.Dtos.Diagram.Commands.Abstract;
+using CabinetOs.Model.Dtos.Diagram.Commands.Draft.Abstract;
 using CabinetOs.Model.Dtos.Diagram.Queries;
 using FluentValidation;
 using static CabinetOs.Model.Enums.EntityEnums;

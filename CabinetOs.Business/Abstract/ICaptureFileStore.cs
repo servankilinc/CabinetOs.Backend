@@ -3,12 +3,12 @@ using CabinetOs.Core.Utils.ResultPattern;
 namespace CabinetOs.Business.Abstract;
 
 /// <summary>Diske yazilan cekimin sonucu.</summary>
-/// <param name="StorageKey">
+/// <param name="RelativePath">
 /// <c>wwwroot</c>'a gore GORELI yol (orn. <c>uploads/captures/2026/08/31/{guid}.jpg</c>).
 /// Tam URL degil: sema, host ve kok dizin yapilandirmadan gelir; her satira
 /// yazilsaydi depo tasindiginda binlerce satir guncellenmeliydi.
 /// </param>
-public sealed record StoredCapture(string StorageKey, long SizeBytes);
+public sealed record StoredCapture(string RelativePath, long SizeBytes);
 
 /// <summary>
 /// Cekim dosyalarinin diske yazilmasi.
@@ -21,7 +21,7 @@ public sealed record StoredCapture(string StorageKey, long SizeBytes);
 /// <b>Sonucu acikca:</b> <c>wwwroot</c> altindaki dosyalar
 /// <c>UseStaticFiles</c> ile KIMLIK DOGRULAMASIZ servis edilir; URL'yi bilen
 /// goruntuyu indirebilir. Tek engel dosya adinin tahmin edilemez bir
-/// <c>Guid</c> olmasidir. Bu desen <c>CameraCapture.StorageKey</c>'in XML
+/// <c>Guid</c> olmasidir. Bu desen <c>CameraCapture.RelativePath</c>'in XML
 /// dokumaninda zaten ilan edilmis ve sistem kapali agda calisiyor. Yetkili bir
 /// uctan servis istenirse degisecek tek yer bu sinifin kok dizinidir.
 /// </summary>

@@ -161,7 +161,7 @@ public partial class CameraService
             else
             {
                 capture.Status = CaptureStatus.Available;
-                capture.StorageKey = storeResult.Data.StorageKey;
+                capture.RelativePath = storeResult.Data.RelativePath;
                 capture.SizeBytes = storeResult.Data.SizeBytes;
             }
         }
@@ -307,7 +307,7 @@ public partial class CameraService
             }
 
             capture.Status = CaptureStatus.Available;
-            capture.StorageKey = storeResult.Data.StorageKey;
+            capture.RelativePath = storeResult.Data.RelativePath;
             capture.SizeBytes = storeResult.Data.SizeBytes;
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -352,7 +352,7 @@ public partial class CameraService
     {
         capture.Status = CaptureStatus.Failed;
         capture.FailureReason = Truncate(reason, 512);
-        capture.StorageKey = null;
+        capture.RelativePath = null;
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -417,7 +417,7 @@ public partial class CameraService
         Status = capture.Status,
         CapturedAtUtc = capture.CapturedAtUtc,
         DurationSec = capture.DurationSec,
-        RelativePath = capture.StorageKey,
+        RelativePath = capture.RelativePath,
         SizeBytes = capture.SizeBytes,
         FailureReason = capture.FailureReason,
         ExpiresAt = capture.ExpiresAt,
