@@ -1,6 +1,5 @@
 using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
-using CabinetOs.Model.Dtos.Device.Commands;
 using CabinetOs.Model.Dtos.DeviceCommand.Commands;
 using CabinetOs.WebAPI.Controllers.Base;
 using Microsoft.AspNetCore.Mvc;
@@ -57,55 +56,6 @@ public class DeviceController : BaseController
     public async Task<IActionResult> GetDetailList(DynamicRequest? request = default)
     {
         var result = await _deviceService.GetDetailListAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Create(DeviceCreateDto request)
-    {
-        var result = await _deviceService.CreateAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpGet("{id:guid}/update")]
-    public async Task<IActionResult> Update(Guid id)
-    {
-        var result = await _deviceService.GetUpdateModelAsync(id: id);
-        return ToAction(result);
-    }
-
-    [HttpPut]
-    public async Task<IActionResult> Update(DeviceUpdateDto request)
-    {
-        var result = await _deviceService.UpdateAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpGet("selectlist")]
-    public async Task<IActionResult> SelectList()
-    {
-        var result = await _deviceService.SelectListAsync();
-        return ToAction(result);
-    }
-
-    [HttpPost("pagination")]
-    public async Task<IActionResult> Pagination(DynamicPaginationRequest request)
-    {
-        var result = await _deviceService.PaginationAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("datatable/client")]
-    public async Task<IActionResult> DatatableClientSide(DynamicDatatableRequest request)
-    {
-        var result = await _deviceService.DatatableClientSideAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("datatable/server")]
-    public async Task<IActionResult> DatatableServerSide(DynamicDatatableRequest request)
-    {
-        var result = await _deviceService.DatatableServerSideAsync(request);
         return ToAction(result);
     }
 

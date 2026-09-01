@@ -1,6 +1,5 @@
 using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
-using CabinetOs.Model.Dtos.DiagramAnnotation.Commands;
 using CabinetOs.WebAPI.Controllers.Base;
 using Microsoft.AspNetCore.Mvc;
 
@@ -39,62 +38,6 @@ public class DiagramAnnotationController : BaseController
     public async Task<IActionResult> GetBaseList(DynamicRequest? request = default)
     {
         var result = await _diagramAnnotationService.GetBaseListAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Create(DiagramAnnotationCreateDto request)
-    {
-        var result = await _diagramAnnotationService.CreateAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpGet("{id:guid}/update")]
-    public async Task<IActionResult> Update(Guid id)
-    {
-        var result = await _diagramAnnotationService.GetUpdateModelAsync(id: id);
-        return ToAction(result);
-    }
-
-    [HttpPut]
-    public async Task<IActionResult> Update(DiagramAnnotationUpdateDto request)
-    {
-        var result = await _diagramAnnotationService.UpdateAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
-    {
-        var result = await _diagramAnnotationService.DeleteAsync(id: id);
-        return ToAction(result);
-    }
-
-    [HttpGet("selectlist")]
-    public async Task<IActionResult> SelectList()
-    {
-        var result = await _diagramAnnotationService.SelectListAsync();
-        return ToAction(result);
-    }
-
-    [HttpPost("pagination")]
-    public async Task<IActionResult> Pagination(DynamicPaginationRequest request)
-    {
-        var result = await _diagramAnnotationService.PaginationAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("datatable/client")]
-    public async Task<IActionResult> DatatableClientSide(DynamicDatatableRequest request)
-    {
-        var result = await _diagramAnnotationService.DatatableClientSideAsync(request);
-        return ToAction(result);
-    }
-
-    [HttpPost("datatable/server")]
-    public async Task<IActionResult> DatatableServerSide(DynamicDatatableRequest request)
-    {
-        var result = await _diagramAnnotationService.DatatableServerSideAsync(request);
         return ToAction(result);
     }
 }
