@@ -2,7 +2,7 @@ using CabinetOs.Core.Model;
 using FluentValidation;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Model.Dtos.Diagram.Commands;
+namespace CabinetOs.Model.Dtos.CanvasSettings.Commands;
 
 public class CanvasSettingsUpsertDto : IDto
 {

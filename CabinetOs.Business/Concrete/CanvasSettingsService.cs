@@ -2,8 +2,11 @@ using AutoMapper;
 using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Core.Utils.ResultPattern;
+using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
+using CabinetOs.Model.Dtos.CanvasSettings.Commands;
 using CabinetOs.Model.Dtos.CanvasSettings.Queries;
+using CabinetOs.Model.Dtos.Diagram.Queries;
 using CabinetOs.Model.Entities;
 using System.Linq.Expressions;
 
@@ -13,10 +16,71 @@ public class CanvasSettingsService : ICanvasSettingsService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
-    public CanvasSettingsService(IUnitOfWork unitOfWork, IMapper mapper)
+    private readonly IValidationService _validationService;
+    public CanvasSettingsService(IUnitOfWork unitOfWork, IMapper mapper, IValidationService validationService)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _validationService = validationService;
+    }
+
+    public async Task<Result<DiagramCanvasSettingsDto>> UpsertAsync(
+        Guid cabinetId,
+        CanvasSettingsUpsertDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            return Result<DiagramCanvasSettingsDto>.Validation(validationResult.Failures, description: "Validation failed for CanvasSettingsUpsertDto");
+
+        var cabinetExists = await _unitOfWork.Cabinets.IsExistAsync(
+            where: c => c.Id == cabinetId && c.IsActive,
+            cancellationToken: cancellationToken);
+
+        if (!cabinetExists)
+            return Result<DiagramCanvasSettingsDto>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+
+        var existing = await _unitOfWork.CanvasSettings.GetAsync(
+            where: s => s.CabinetId == cabinetId,
+            cancellationToken: cancellationToken);
+
+        if (existing == null)
+        {
+            var created = new CanvasSettings
+            {
+                CabinetId = cabinetId,
+                GridSize = request.GridSize,
+                SnapToGrid = request.SnapToGrid,
+                BackgroundVariant = request.BackgroundVariant,
+                GridColor = request.GridColor,
+                BackgroundColor = request.BackgroundColor,
+                MinZoom = request.MinZoom,
+                MaxZoom = request.MaxZoom
+            };
+            await _unitOfWork.CanvasSettings.AddAndSaveAsync(created, cancellationToken);
+        }
+        else
+        {
+            existing.GridSize = request.GridSize;
+            existing.SnapToGrid = request.SnapToGrid;
+            existing.BackgroundVariant = request.BackgroundVariant;
+            existing.GridColor = request.GridColor;
+            existing.BackgroundColor = request.BackgroundColor;
+            existing.MinZoom = request.MinZoom;
+            existing.MaxZoom = request.MaxZoom;
+            await _unitOfWork.CanvasSettings.UpdateAndSaveAsync(existing, cancellationToken);
+        }
+
+        return Result<DiagramCanvasSettingsDto>.Success(new DiagramCanvasSettingsDto
+        {
+            GridSize = request.GridSize,
+            SnapToGrid = request.SnapToGrid,
+            BackgroundVariant = request.BackgroundVariant,
+            GridColor = request.GridColor,
+            BackgroundColor = request.BackgroundColor,
+            MinZoom = request.MinZoom,
+            MaxZoom = request.MaxZoom
+        });
     }
 
     public async Task<Result<CanvasSettings>> GetAsync(Expression<Func<CanvasSettings, bool>> where, CancellationToken cancellationToken = default)

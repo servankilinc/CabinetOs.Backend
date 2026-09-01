@@ -1,5 +1,5 @@
 using CabinetOs.Core.Utils.ResultPattern;
-using CabinetOs.Model.Dtos.Diagram.Queries;
+using CabinetOs.Model.Dtos.ComponentTemplate.Queries;
 
 namespace CabinetOs.WebAPI.Utils;
 

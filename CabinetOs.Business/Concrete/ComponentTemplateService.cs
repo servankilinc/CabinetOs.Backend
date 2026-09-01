@@ -2,6 +2,7 @@ using AutoMapper;
 using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Core.Utils.ResultPattern;
+using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
 using CabinetOs.Model.Dtos.ComponentTemplate.Queries;
 using CabinetOs.Model.Entities;
@@ -9,14 +10,39 @@ using System.Linq.Expressions;
 
 namespace CabinetOs.Business.Concrete;
 
-public class ComponentTemplateService : IComponentTemplateService
+public partial class ComponentTemplateService : IComponentTemplateService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
-    public ComponentTemplateService(IUnitOfWork unitOfWork, IMapper mapper)
+    private readonly IValidationService _validationService;
+    public ComponentTemplateService(IUnitOfWork unitOfWork, IMapper mapper, IValidationService validationService)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _validationService = validationService;
+    }
+
+    public async Task<Result<ICollection<ComponentTemplatePaletteDto>>> GetPaletteAsync(CancellationToken cancellationToken = default)
+    {
+        var templates = await _unitOfWork.ComponentTemplates.GetAllAsync(
+            select: t => new ComponentTemplatePaletteDto
+            {
+                Id = t.Id,
+                Name = t.Name,
+                DeviceTypeId = t.DeviceTypeId,
+                IsSystemTemplate = t.IsSystemTemplate,
+                Width = t.Width,
+                Height = t.Height,
+                BackgroundColor = t.BackgroundColor,
+                BackgroundImageUrl = t.BackgroundImageUrl,
+                PinCount = t.ComponentTemplatePins!.Count()
+            },
+            // Palet bir SECIM kaynagidir: pasife alinmis sablon yeni cihaz uretmemeli.
+            where: t => t.IsActive,
+            orderBy: q => q.OrderBy(t => t.DeviceTypeId).ThenBy(t => t.Name),
+            cancellationToken: cancellationToken);
+
+        return Result<ICollection<ComponentTemplatePaletteDto>>.Success(templates ?? []);
     }
 
     public async Task<Result<ComponentTemplate>> GetAsync(Expression<Func<ComponentTemplate, bool>> where, CancellationToken cancellationToken = default)

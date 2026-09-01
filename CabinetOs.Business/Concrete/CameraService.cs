@@ -240,7 +240,7 @@ public partial class CameraService : ICameraService
     /// DB'de filtreli UNIQUE index var; burada ONCEDEN kontrol edilmesinin sebebi
     /// kisit ihlalinin 500 olarak donmesi — oysa ikisi de istemcinin
     /// duzeltebilecegi siradan girdi hatalari. Ayni yaklasim
-    /// <c>DiagramService.CreateTemplateAsync</c>'te de var.
+    /// <c>ComponentTemplateService.CreateAsync</c>'te de var.
     ///
     /// Karsilastirma DB tarafinda yapilir; SQL Server collation'i buyuk/kucuk harf
     /// duyarsiz oldugu icin "cam-1" ile "CAM-1" ayni satirdir ve .NET'in ordinal

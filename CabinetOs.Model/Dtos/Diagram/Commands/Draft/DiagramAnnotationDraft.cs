@@ -1,11 +1,12 @@
 using CabinetOs.Core.Model;
+using CabinetOs.Model.Dtos.Diagram.Commands.Abstract;
 using FluentValidation;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Model.Dtos.Diagram.Commands;
+namespace CabinetOs.Model.Dtos.Diagram.Commands.Draft;
 
 /// <summary> Canvas'taki bir not / kutu / etiketin TAM durumu — yeni de olabilir, mevcut da. </summary>
-public class AnnotationDraft : IDto, IIdentifiableDraft
+public class DiagramAnnotationDraft : IDto, IIdentifiableDraft
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
@@ -26,9 +27,9 @@ public class AnnotationDraft : IDto, IIdentifiableDraft
     public string BorderColor { get; set; } = null!;
 }
 
-public class AnnotationDraftValidator : AbstractValidator<AnnotationDraft>
+public class DiagramAnnotationDraftValidator : AbstractValidator<DiagramAnnotationDraft>
 {
-    public AnnotationDraftValidator()
+    public DiagramAnnotationDraftValidator()
     {
         RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Not kimligi zorunlu");
         RuleFor(v => v.Name).NotEmpty().WithMessage("Not adi zorunlu");

@@ -1,5 +1,6 @@
 ﻿using CabinetOs.Business.Utils;
 using CabinetOs.Model.Dtos.Diagram.Commands;
+using CabinetOs.Model.Dtos.Diagram.Commands.Draft;
 using CabinetOs.Model.Entities;
 
 namespace CabinetOs.Business.Concrete;
@@ -107,7 +108,7 @@ public partial class DiagramService
     /// </summary>
     private async Task<EntityLookup<DiagramAnnotation>> LoadAnnotationsAsync(Guid cabinetId, DiagramSaveRequest request, CancellationToken cancellationToken)
     {
-        var ids = request.Annotations.Upserted.Select(a => a.Id).Concat(request.Annotations.Deleted).Distinct().ToList();
+        var ids = request.DiagramAnnotations.Upserted.Select(a => a.Id).Concat(request.DiagramAnnotations.Deleted).Distinct().ToList();
         if (ids.Count == 0) return new();
 
         var rows = await _unitOfWork.DiagramAnnotations.GetAllAsync(
@@ -367,9 +368,9 @@ public partial class DiagramService
     /// <summary>Not taslaklari: hedef satir erisilebilir mi.</summary>
     private static void ValidateAnnotations(DiagramSaveRequest request, SaveContext context, Dictionary<string, List<string>> errors)
     {
-        for (int i = 0; i < request.Annotations.Upserted.Count; i++)
+        for (int i = 0; i < request.DiagramAnnotations.Upserted.Count; i++)
         {
-            ReportUnreachable(context.Annotations, request.Annotations.Upserted[i].Id, errors, $"Annotations.Upserted[{i}].Id", "Not");
+            ReportUnreachable(context.Annotations, request.DiagramAnnotations.Upserted[i].Id, errors, $"Annotations.Upserted[{i}].Id", "Not");
         }
     }
 
@@ -516,7 +517,7 @@ public partial class DiagramService
         //    IActivatableEntity ne ISoftDeletableEntity oldugundan interceptor araya
         //    girmez ve satir gercekten silinir; kimse ona FK ile bagli olmadigi icin
         //    oksuz satir birakmaz.
-        var annotationsToRemove = request.Annotations.Deleted
+        var annotationsToRemove = request.DiagramAnnotations.Deleted
             .Where(context.Annotations.Live.ContainsKey)
             .Select(id => context.Annotations.Live[id])
             .ToList();
@@ -527,7 +528,7 @@ public partial class DiagramService
         // istegi. Cascade ile kalkanlar istemcinin istegi degildi, sayilmaz.
         return request.Connections.Deleted.Count(id => !context.Connections.Live.ContainsKey(id))
              + request.Devices.Deleted.Count(id => !context.Devices.Live.ContainsKey(id))
-             + request.Annotations.Deleted.Count(id => !context.Annotations.Live.ContainsKey(id));
+             + request.DiagramAnnotations.Deleted.Count(id => !context.Annotations.Live.ContainsKey(id));
     }
 
     /// <summary>
@@ -585,7 +586,7 @@ public partial class DiagramService
             _unitOfWork.Connections.Add(connection);
         }
 
-        foreach (var draft in request.Annotations.Upserted)
+        foreach (var draft in request.DiagramAnnotations.Upserted)
         {
             if (context.Annotations.Live.TryGetValue(draft.Id, out var annotation))
             {
@@ -634,7 +635,7 @@ public partial class DiagramService
         connection.ZIndex = draft.ZIndex;
     }
 
-    private static void WriteAnnotation(DiagramAnnotation annotation, AnnotationDraft draft)
+    private static void WriteAnnotation(DiagramAnnotation annotation, DiagramAnnotationDraft draft)
     {
         annotation.Name = draft.Name;
         annotation.CoordinateX = draft.CoordinateX;

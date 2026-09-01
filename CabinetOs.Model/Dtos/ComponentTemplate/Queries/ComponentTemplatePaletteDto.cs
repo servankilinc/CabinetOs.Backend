@@ -1,8 +1,8 @@
 using CabinetOs.Core.Model;
 
-namespace CabinetOs.Model.Dtos.Diagram.Queries;
+namespace CabinetOs.Model.Dtos.ComponentTemplate.Queries;
 
-/// <summary> 
+/// <summary>
 /// ComponentTemplate PINLERI burada YOK: paletten birakilan cihazin pinleri sunucuda
 /// sablondan uretilir (D2, <c>instantiatePins</c>), istemcinin onlari bilmesine gerek kalmaz.
 /// </summary>

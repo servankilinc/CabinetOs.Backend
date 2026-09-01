@@ -1,37 +1,31 @@
-using CabinetOs.Business.Abstract;
-using CabinetOs.Business.Utils;
 using CabinetOs.Core.Utils.ResultPattern;
-using CabinetOs.Core.Utils.Validation;
-using CabinetOs.DataAccess.UoW;
 using CabinetOs.Model.Dtos.Common;
-using CabinetOs.Model.Dtos.Diagram.Commands;
-using CabinetOs.Model.Dtos.Diagram.Queries;
+using CabinetOs.Model.Dtos.ComponentTemplate.Commands;
 using CabinetOs.Model.Entities;
-using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Business.Concrete;
 
-public partial class DiagramService
+public partial class ComponentTemplateService
 {
     /// <summary>
     /// Palet yazarligi: sablon + pinleri TEK transaction'da olusturur.
     ///
-    /// Generic CRUD sablonunun <c>*AndSaveAsync</c> konvansiyonu burada da BILEREK
+    /// Generic CRUD sablonunun <c>*AndSaveAsync</c> konvansiyonu burada BILEREK
     /// kirilir (ayni gerekce: <c>DiagramService.Save.cs</c>) — her pin icin ayri bir
     /// commit, yarim yazilmis bir sablon birakma riski demek olurdu.
     /// </summary>
-    public async Task<Result<CreatedDto>> CreateTemplateAsync(
-        DiagramTemplateCreateRequest request,
+    public async Task<Result<CreatedDto>> CreateAsync(
+        ComponentTemplateCreateRequest request,
         CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result<CreatedDto>.Validation(validationResult.Failures, description: "Validation failed for DiagramTemplateCreateRequest");
+            return Result<CreatedDto>.Validation(validationResult.Failures, description: "Validation failed for ComponentTemplateCreateRequest");
 
         // DeviceTypeId ONCE kontrol edilir. FK'ya birakilsaydi gecersiz bir tip
         // kisit ihlali uretir ve 500 donerdi; oysa bu, istemcinin duzeltebilecegi
-        // siradan bir girdi hatasi. Ayni yaklasim SaveAsync'te de var: referans
-        // dogrulamalari transaction ACILMADAN once yapilir.
+        // siradan bir girdi hatasi. Ayni yaklasim DiagramService.SaveAsync'te de var:
+        // referans dogrulamalari transaction ACILMADAN once yapilir.
         var deviceTypeExists = await _unitOfWork.DeviceTypes.IsExistAsync(
             where: t => t.Id == request.DeviceTypeId,
             cancellationToken: cancellationToken);

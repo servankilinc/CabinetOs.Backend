@@ -2,10 +2,10 @@ using CabinetOs.Core.Model;
 using FluentValidation;
 using EntityEnums = CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Model.Dtos.Diagram.Commands;
+namespace CabinetOs.Model.Dtos.ComponentTemplate.Commands;
 
 /// <summary> ComponentTemplate + ComponentTemplatePinleri TEK transaction'da olusturur. </summary>
-public class DiagramTemplateCreateRequest : IDto
+public class ComponentTemplateCreateRequest : IDto
 {
     public string Name { get; set; } = null!;
     public int DeviceTypeId { get; set; }
@@ -18,7 +18,9 @@ public class DiagramTemplateCreateRequest : IDto
     public List<TemplatePinDraft> Pins { get; set; } = [];
 }
 
-/// <summary> ComponentTemplate birlikte olusturulan pin. <c>ComponentTemplatePinCreateDto</c>'dan tek farki <c>ComponentTemplateId</c> TASIMAMASI </summary>
+/// <summary> ComponentTemplate ile birlikte olusturulan pin. Ayri bir pin yazma ucu YOK: sablon
+/// henuz olusmadigi icin yazilabilecek bir <c>ComponentTemplateId</c> de yok, sunucu commit'ten
+/// once kendisi baglar. </summary>
 public class TemplatePinDraft : IDto
 {
     public string Name { get; set; } = null!;
@@ -33,11 +35,11 @@ public class TemplatePinDraft : IDto
     public EntityEnums.VoltageLevel? VoltageLevel { get; set; }
 }
 
-public class DiagramTemplateCreateRequestValidator : AbstractValidator<DiagramTemplateCreateRequest>
+public class ComponentTemplateCreateRequestValidator : AbstractValidator<ComponentTemplateCreateRequest>
 {
     public const int MaxPins = 256;
 
-    public DiagramTemplateCreateRequestValidator()
+    public ComponentTemplateCreateRequestValidator()
     {
         RuleFor(v => v.Name).MinimumLength(2).WithMessage("En az 2 karakter icermeli");
         RuleFor(v => v.Width).GreaterThan(0).WithMessage("Genislik bilgisi bos gecilemez");

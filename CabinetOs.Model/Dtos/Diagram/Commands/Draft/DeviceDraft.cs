@@ -1,7 +1,8 @@
 using CabinetOs.Core.Model;
+using CabinetOs.Model.Dtos.Diagram.Commands.Abstract;
 using FluentValidation;
 
-namespace CabinetOs.Model.Dtos.Diagram.Commands;
+namespace CabinetOs.Model.Dtos.Diagram.Commands.Draft;
 
 /// <summary>
 /// Canvas'taki bir cihazin TAM durumu — yeni de olabilir, mevcut da.

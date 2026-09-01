@@ -1,5 +1,6 @@
 using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
+using CabinetOs.Model.Dtos.CanvasSettings.Commands;
 using CabinetOs.WebAPI.Controllers.Base;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,6 +12,19 @@ public class CanvasSettingsController : BaseController
     public CanvasSettingsController(ILogger<CanvasSettingsController> logger, ICanvasSettingsService canvasSettingsService) : base(logger)
     {
         _canvasSettingsService = canvasSettingsService;
+    }
+
+    /// <summary>
+    /// Kabinin canvas tercihlerini yazar; kayit yoksa olusturur (upsert).
+    ///
+    /// <c>cabinetId</c> ROTADAN alinir, govdede yoktur: ikisi de bulunsaydi
+    /// celisebilir ve hangisinin kazandigi belirsiz kalirdi.
+    /// </summary>
+    [HttpPut("cabinet/{cabinetId:guid}")]
+    public async Task<IActionResult> Upsert(Guid cabinetId, CanvasSettingsUpsertDto request, CancellationToken cancellationToken)
+    {
+        var result = await _canvasSettingsService.UpsertAsync(cabinetId, request, cancellationToken);
+        return ToAction(result);
     }
 
     [HttpGet("{id:guid}")]

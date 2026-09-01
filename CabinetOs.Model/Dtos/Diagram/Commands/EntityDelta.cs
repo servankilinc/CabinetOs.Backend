@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using CabinetOs.Core.Model;
+using CabinetOs.Model.Dtos.Diagram.Commands.Abstract;
 
 namespace CabinetOs.Model.Dtos.Diagram.Commands;
 

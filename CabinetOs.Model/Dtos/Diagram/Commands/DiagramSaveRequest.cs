@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 using CabinetOs.Core.Model;
+using CabinetOs.Model.Dtos.Diagram.Commands.Abstract;
+using CabinetOs.Model.Dtos.Diagram.Commands.Draft;
 using FluentValidation;
 
 namespace CabinetOs.Model.Dtos.Diagram.Commands;
@@ -8,11 +10,11 @@ public class DiagramSaveRequest : IDto
 {
     public EntityDelta<DeviceDraft> Devices { get; set; } = new();
     public EntityDelta<ConnectionDraft> Connections { get; set; } = new();
-    public EntityDelta<AnnotationDraft> Annotations { get; set; } = new();
+    public EntityDelta<DiagramAnnotationDraft> DiagramAnnotations { get; set; } = new();
 
     /// <summary> Hicbir sey degismemisse sunucu transaction bile acmaz. </summary>
     [JsonIgnore]
-    public bool IsEmpty => Devices.IsEmpty && Connections.IsEmpty && Annotations.IsEmpty;
+    public bool IsEmpty => Devices.IsEmpty && Connections.IsEmpty && DiagramAnnotations.IsEmpty;
 }
 
 public class DiagramSaveRequestValidator : AbstractValidator<DiagramSaveRequest>
@@ -21,11 +23,11 @@ public class DiagramSaveRequestValidator : AbstractValidator<DiagramSaveRequest>
     {
         RuleForEach(v => v.Devices.Upserted).SetValidator(new DeviceDraftValidator());
         RuleForEach(v => v.Connections.Upserted).SetValidator(new ConnectionDraftValidator());
-        RuleForEach(v => v.Annotations.Upserted).SetValidator(new AnnotationDraftValidator());
+        RuleForEach(v => v.DiagramAnnotations.Upserted).SetValidator(new DiagramAnnotationDraftValidator());
 
         AddDeltaConsistencyRules(v => v.Devices, "Devices", "cihaz");
         AddDeltaConsistencyRules(v => v.Connections, "Connections", "kablo");
-        AddDeltaConsistencyRules(v => v.Annotations, "Annotations", "not");
+        AddDeltaConsistencyRules(v => v.DiagramAnnotations, "Annotations", "not");
     }
 
     /// <summary>
