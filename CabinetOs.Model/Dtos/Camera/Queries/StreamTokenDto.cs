@@ -9,7 +9,7 @@ namespace CabinetOs.Model.Dtos.Camera.Queries;
 /// Tarayici kameraya asla dogrudan baglanmaz; medya gecidine baglanir ve
 /// gecit de kameraya. Bu DTO o zincirin tarayiciya acilan tek halkasidir.
 /// </summary>
-public class StreamTicketDto : IDto
+public class StreamTokenDto : IDto
 {
     /// <summary>
     /// Tarayicinin SDP teklifini gonderecegi WHEP adresi.
@@ -28,11 +28,11 @@ public class StreamTicketDto : IDto
     /// <b>Yola baglidir</b>: A kamerasi icin alinmis bir bilet B kamerasinin
     /// adresinde calismaz.
     /// </summary>
-    public string Ticket { get; set; } = null!;
+    public string Token { get; set; } = null!;
 
     /// <summary>
     /// Biletin son gecerlilik ani (UTC). Istemci baglantisi koptugunda eski
     /// bileti tekrar kullanmaya calismamali, YENISINI istemelidir.
     /// </summary>
-    public DateTime ExpiresAt { get; set; }
+    public DateTime ExpirationUtc { get; set; }
 }

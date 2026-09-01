@@ -11,7 +11,8 @@ public class DiagramTemplateCreateRequest : IDto
     public int DeviceTypeId { get; set; }
     public double Width { get; set; }
     public double Height { get; set; }
-    public int BackgroundColor { get; set; }
+    /// <summary>#RRGGBB renk dizesi.</summary>
+    public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
 
     public List<TemplatePinDraft> Pins { get; set; } = [];
@@ -41,7 +42,7 @@ public class DiagramTemplateCreateRequestValidator : AbstractValidator<DiagramTe
         RuleFor(v => v.Name).MinimumLength(2).WithMessage("En az 2 karakter icermeli");
         RuleFor(v => v.Width).GreaterThan(0).WithMessage("Genislik bilgisi bos gecilemez");
         RuleFor(v => v.Height).GreaterThan(0).WithMessage("Yukseklik bilgisi bos gecilemez");
-        RuleFor(v => v.BackgroundColor).InclusiveBetween(0, 0xFFFFFF).WithMessage("Arka plan rengi 0x000000 - 0xFFFFFF araliginda olmali");
+        RuleFor(v => v.BackgroundColor).Matches("^#[0-9A-Fa-f]{6}$").WithMessage("Arka plan rengi #RRGGBB biciminde olmali");
 
         RuleFor(v => v.Pins.Count).LessThanOrEqualTo(MaxPins).OverridePropertyName("Pins").WithMessage($"Bir sablonda en fazla {MaxPins} pin olabilir");
 

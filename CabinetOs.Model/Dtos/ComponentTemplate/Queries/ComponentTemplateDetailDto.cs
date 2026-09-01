@@ -10,7 +10,7 @@ namespace CabinetOs.Model.Dtos.ComponentTemplate.Queries
         public bool IsSystemTemplate { get; set; }
         public double Width { get; set; }
         public double Height { get; set; }
-        public int BackgroundColor { get; set; }
+        public string BackgroundColor { get; set; } = null!;
         public string? BackgroundImageUrl { get; set; }
         public string DeviceTypeName { get; set; } = null!;
         public string? CreatedBy { get; set; }

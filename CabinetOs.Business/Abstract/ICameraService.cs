@@ -55,7 +55,7 @@ public interface ICameraService
     /// <b>Donen govdede RTSP adresi, kullanici adi veya parola YOKTUR.</b>
     /// Bilet yola baglidir ve kisa omurludur.
     /// </summary>
-    Task<Result<StreamTicketDto>> CreateStreamTicketAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default);
+    Task<Result<StreamTokenDto>> CreateStreamTicketAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Medya gecidinin sordugu bileti dogrular. Yalnizca

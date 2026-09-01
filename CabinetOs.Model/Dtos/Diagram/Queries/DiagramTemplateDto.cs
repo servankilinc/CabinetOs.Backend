@@ -20,7 +20,7 @@ public class DiagramTemplateDto : IDto
     public int DeviceTypeId { get; set; }
     public double Width { get; set; }
     public double Height { get; set; }
-    /// <summary>0xRRGGBB tamsayisi (renk dizesi degil) — bkz. 00-conventions.md.</summary>
-    public int BackgroundColor { get; set; }
+    /// <summary>#RRGGBB renk dizesi — bkz. 00-conventions.md.</summary>
+    public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
 }

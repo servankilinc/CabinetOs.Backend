@@ -37,7 +37,7 @@ public partial class CameraService
     /// </summary>
     private const string TicketKeyPrefix = "stream_ticket_";
 
-    public async Task<Result<StreamTicketDto>> CreateStreamTicketAsync(
+    public async Task<Result<StreamTokenDto>> CreateStreamTicketAsync(
         Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default)
     {
         var camera = await _unitOfWork.Cameras.GetAsync(
@@ -45,10 +45,10 @@ public partial class CameraService
             cancellationToken: cancellationToken);
 
         if (camera == null)
-            return Result<StreamTicketDto>.NotFound(description: "Kamera bulunamadi");
+            return Result<StreamTokenDto>.NotFound(description: "Kamera bulunamadi");
 
         if (!camera.IsActive)
-            return StreamProblem<StreamTicketDto>("IsActive", "Pasif kamera izlenemez.");
+            return StreamProblem<StreamTokenDto>("IsActive", "Pasif kamera izlenemez.");
 
         // Kapali bir akim icin yol kurmak, MediaMTX'in var olmayan bir kanala
         // baglanmaya calisip zaman asimina dusmesi demekti. Sebep burada acikca
@@ -58,12 +58,12 @@ public partial class CameraService
         {
             string field = profile == StreamProfile.Main ? "MainStreamEnabled" : "SubStreamEnabled";
             string label = profile == StreamProfile.Main ? "Ana akım" : "Tali akım";
-            return StreamProblem<StreamTicketDto>(field, $"{label} bu kamerada kapalı.");
+            return StreamProblem<StreamTokenDto>(field, $"{label} bu kamerada kapalı.");
         }
 
         var ensureResult = await _mediaGateway.EnsureLivePathAsync(camera, profile, cancellationToken);
         if (!ensureResult.IsSuccess)
-            return Result<StreamTicketDto>.Failure(description: ensureResult.Error.Description);
+            return Result<StreamTokenDto>.Failure(description: ensureResult.Error.Description);
 
         string pathName = IMediaGateway.LivePathName(camera.Id, profile);
 
@@ -81,11 +81,11 @@ public partial class CameraService
             new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ttl },
             cancellationToken);
 
-        return Result<StreamTicketDto>.Success(new StreamTicketDto
+        return Result<StreamTokenDto>.Success(new StreamTokenDto
         {
             WhepUrl = $"{_mediaMtxSettings.WebRtcPublicBaseUrl.TrimEnd('/')}/{pathName}/whep",
-            Ticket = ticket,
-            ExpiresAt = expiresAt
+            Token = ticket,
+            ExpirationUtc = expiresAt
         });
     }
 

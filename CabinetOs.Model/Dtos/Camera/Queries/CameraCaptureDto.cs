@@ -33,7 +33,7 @@ public class CameraCaptureDto : IDto
     /// Dosyanin <c>wwwroot</c>'a gore goreli yolu. Tam URL DEGILDIR — istemci
     /// kendi API kokuyle birlestirir. <c>Pending</c> ve <c>Failed</c> iken null.
     /// </summary>
-    public string? StorageKey { get; set; }
+    public string? RelativePath { get; set; }
 
     public long? SizeBytes { get; set; }
 

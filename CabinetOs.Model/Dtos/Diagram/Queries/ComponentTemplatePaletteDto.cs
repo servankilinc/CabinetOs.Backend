@@ -14,8 +14,8 @@ public class ComponentTemplatePaletteDto : IDto
     public bool IsSystemTemplate { get; set; }
     public double Width { get; set; }
     public double Height { get; set; }
-    /// <summary>0xRRGGBB tamsayisi.</summary>
-    public int BackgroundColor { get; set; }
+    /// <summary>#RRGGBB renk dizesi.</summary>
+    public string BackgroundColor { get; set; } = null!;
     public string? BackgroundImageUrl { get; set; }
     public int PinCount { get; set; }
 }

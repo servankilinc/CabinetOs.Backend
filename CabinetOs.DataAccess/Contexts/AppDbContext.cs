@@ -137,6 +137,8 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
         {
             c.ToTable("ComponentTemplate");
             c.HasKey(c => c.Id);
+            // #RRGGBB — 7 karakter yeter, 32 kardes renk alanlariyla ayni tavani verir.
+            c.Property(c => c.BackgroundColor).HasMaxLength(32).IsRequired();
             c.HasMany(c => c.ComponentTemplatePins).WithOne(c => c.ComponentTemplate).HasForeignKey(c => c.ComponentTemplateId).OnDelete(DeleteBehavior.Cascade);
             c.HasMany(c => c.Devices).WithOne(d => d.ComponentTemplate).HasForeignKey(d => d.ComponentTemplateId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -597,7 +599,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             numberChannels ? n : null));
 
     /// <summary>
-    /// Sistem sablonlarinin varsayilan zemin rengi (0xRRGGBB).
+    /// Sistem sablonlarinin varsayilan zemin rengi (#RRGGBB).
     ///
     /// Tip basina AYRI renk: hepsi ayni tonda oldugunda ne palet karti ne de
     /// canvas'taki kutu birbirinden ayirt edilebiliyordu — bir gucu kaynagini
@@ -607,21 +609,21 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     /// hesaplandigi icin koyu renkler de calisir, ama acik zemin uzerinde pin
     /// isimleri ve durum rozetleri daha okunur kaliyor.
     /// </summary>
-    private static int TypeColor(EntityEnums.DeviceType type) => type switch
+    private static string TypeColor(EntityEnums.DeviceType type) => type switch
     {
-        EntityEnums.DeviceType.ControlModule => 0xDBEAFE,      // mavi
-        EntityEnums.DeviceType.InputModule => 0xDCFCE7,        // yesil
-        EntityEnums.DeviceType.OutputModule => 0xFEE2E2,       // kirmizi
-        EntityEnums.DeviceType.LedModule => 0xFEF9C3,          // sari
-        EntityEnums.DeviceType.TerminalBlock => 0xE2E8F0,      // gri
-        EntityEnums.DeviceType.Sensor => 0xE0E7FF,             // indigo
-        EntityEnums.DeviceType.Peripheral => 0xF3E8FF,         // mor
-        EntityEnums.DeviceType.PowerSupply => 0xFFEDD5,        // turuncu
-        EntityEnums.DeviceType.MeasurementDevice => 0xCCFBF1,  // turkuaz
-        EntityEnums.DeviceType.CardReader => 0xFCE7F3,         // pembe
-        EntityEnums.DeviceType.Mains => 0xFECACA,              // koyu kirmizi
-        EntityEnums.DeviceType.CircuitBreaker => 0xFED7AA,     // koyu turuncu
-        _ => 0xF1F5F9
+        EntityEnums.DeviceType.ControlModule => "#DBEAFE",      // mavi
+        EntityEnums.DeviceType.InputModule => "#DCFCE7",        // yesil
+        EntityEnums.DeviceType.OutputModule => "#FEE2E2",       // kirmizi
+        EntityEnums.DeviceType.LedModule => "#FEF9C3",          // sari
+        EntityEnums.DeviceType.TerminalBlock => "#E2E8F0",      // gri
+        EntityEnums.DeviceType.Sensor => "#E0E7FF",             // indigo
+        EntityEnums.DeviceType.Peripheral => "#F3E8FF",         // mor
+        EntityEnums.DeviceType.PowerSupply => "#FFEDD5",        // turuncu
+        EntityEnums.DeviceType.MeasurementDevice => "#CCFBF1",  // turkuaz
+        EntityEnums.DeviceType.CardReader => "#FCE7F3",         // pembe
+        EntityEnums.DeviceType.Mains => "#FECACA",              // koyu kirmizi
+        EntityEnums.DeviceType.CircuitBreaker => "#FED7AA",     // koyu turuncu
+        _ => "#F1F5F9"
     };
 
     private static void SeedStarterTemplates(ModelBuilder modelBuilder)

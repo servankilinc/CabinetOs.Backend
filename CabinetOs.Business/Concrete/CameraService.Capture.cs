@@ -417,7 +417,7 @@ public partial class CameraService
         Status = capture.Status,
         CapturedAtUtc = capture.CapturedAtUtc,
         DurationSec = capture.DurationSec,
-        StorageKey = capture.StorageKey,
+        RelativePath = capture.StorageKey,
         SizeBytes = capture.SizeBytes,
         FailureReason = capture.FailureReason,
         ExpiresAt = capture.ExpiresAt,
