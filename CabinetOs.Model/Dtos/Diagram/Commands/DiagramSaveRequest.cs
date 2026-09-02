@@ -34,7 +34,7 @@ public class DiagramSaveRequestValidator : AbstractValidator<DiagramSaveRequest>
     /// Bir ailenin kendi icindeki celiskileri.
     ///
     /// Ayni Id'nin silme listesinde iki kez gecmesi burada YAKALANMAZ: bilinmeyen
-    /// ve tekrarli silmeler sunucuda sessizce atlanir (bkz. <c>DiagramSaveResponse.SkippedDeleteCount</c>).
+    /// ve tekrarli silmeler sunucuda sessizce atlanir (K7; bkz. <c>ApplyDeletions</c>).
     /// Yakalanan tek celiski, ayni kaydin hem yazilip hem silinmesi gibi istemci
     /// hatasina isaret eden durumlardir.
     /// </summary>

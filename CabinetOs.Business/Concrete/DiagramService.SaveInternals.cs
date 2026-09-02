@@ -659,8 +659,8 @@ public partial class DiagramService
     /// Karsiligi bulunamayan Id'ler SESSIZCE ATLANIR. Bu, istemcinin "bu kayit
     /// sunucuya gitti mi" bilgisini tasima zorunlulugunu kaldiran karardir (K7): iki
     /// kez gonderilen ya da hic olusmamis bir silme, kullanicinin o ana kadarki tum
-    /// duzenlemesini 400 ile cope atmaz. Atlananlar SAYILMAZ — yaniti okuyan kimse
-    /// yoktu (bkz. <c>DiagramSaveResponse</c>).
+    /// duzenlemesini 400 ile cope atmaz. Atlananlar SAYILMAZ da: sayiyi okuyan bir
+    /// istemci hicbir zaman olmadi ve kaydetme artik bos 200 donuyor.
     /// </summary>
     private void ApplyDeletions(DiagramSaveRequest request, SaveContext context)
     {

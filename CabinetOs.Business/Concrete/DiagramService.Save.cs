@@ -16,24 +16,29 @@ public partial class DiagramService
     /// kaydetme icin sekiz ayri commit uretirdi.
     ///
     /// Bu metodun kullandigi ic adimlar <c>DiagramService.SaveInternals.cs</c>'te.
+    ///
+    /// <b>Basarida VERI DONMEZ.</b> Diyagramdaki her satirin — cihaz, kablo, not,
+    /// pin ve kanal dahil — Guid'ini istemci uretiyor, dolayisiyla ne kimlik
+    /// haritasi ne de sayac gerekiyor. Kaydetme atomik oldugu icin bos 200 tek
+    /// basina "gonderdigim her sey kalici" demektir.
     /// </summary>
-    public async Task<Result<DiagramSaveResponse>> SaveAsync(Guid cabinetId, DiagramSaveRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> SaveAsync(Guid cabinetId, DiagramSaveRequest request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result<DiagramSaveResponse>.Validation(validationResult.Failures, description: "Validation failed for DiagramSaveRequest");
+            return Result.Validation(validationResult.Failures, description: "Validation failed for DiagramSaveRequest");
 
         var cabinetExists = await _unitOfWork.Cabinets.IsExistAsync(
             where: c => c.Id == cabinetId && c.IsActive,
             cancellationToken: cancellationToken);
 
         if (!cabinetExists)
-            return Result<DiagramSaveResponse>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+            return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
 
         // Bos gonderi: transaction bile acilmaz. Kaydet dugmesi bos bir gunlukle
         // tetiklendiginde bunu 400 ile cezalandirmak yalnizca gurultu uretir.
         if (request.IsEmpty)
-            return Result<DiagramSaveResponse>.Success(new DiagramSaveResponse { SavedAtUtc = DateTime.UtcNow });
+            return Result.Success();
 
         var context = await LoadSaveContextAsync(cabinetId, request, cancellationToken);
 
@@ -41,7 +46,7 @@ public partial class DiagramService
         // geri almak yerine hic acmamak, kilit suresini de log gurultusunu de azaltir.
         var errors = ValidateReferences(request, context);
         if (errors.Count > 0)
-            return Result<DiagramSaveResponse>.Validation(errors, description: "Diyagram kaydetme referanslari gecersiz");
+            return Result.Validation(errors, description: "Diyagram kaydetme referanslari gecersiz");
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
         try
@@ -62,7 +67,7 @@ public partial class DiagramService
 
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
-            return Result<DiagramSaveResponse>.Success(new DiagramSaveResponse { SavedAtUtc = DateTime.UtcNow });
+            return Result.Success();
         }
         catch
         {
