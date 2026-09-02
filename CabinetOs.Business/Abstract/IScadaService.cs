@@ -1,6 +1,5 @@
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Dtos.Scada.Commands;
-using CabinetOs.Model.Dtos.Scada.Queries;
 
 namespace CabinetOs.Business.Abstract;
 
@@ -15,10 +14,15 @@ public interface IScadaService
     /// <summary>
     /// Bir kabinin telemetri paketini isler.
     ///
-    /// Tanimadigi cihaz kodu / kanal numarasi SESSIZCE ATLANIR ve sayilir; tum
-    /// istek reddedilmez. Degeri degismeyen kanal YAZILMAZ ve yayin uretmez.
+    /// Tanimadigi cihaz kodu / kanal numarasi SESSIZCE ATLANIR ve tum istek
+    /// reddedilmez; atlananlar SUNUCU TARAFINDA <c>Warning</c> seviyesinde
+    /// loglanir. Degeri degismeyen kanal YAZILMAZ ve yayin uretmez.
+    ///
+    /// Basarili islem GOVDESIZ doner: SCADA kac okumanin islendigiyle
+    /// ilgilenmez, sessiz atlamayi tespit etmesi gereken taraf BIZ'iz ve bunun
+    /// yeri istegin yaniti degil log'dur.
     /// </summary>
-    Task<Result<ScadaIngestResponse>> IngestAsync(ScadaIngestRequest request, CancellationToken cancellationToken = default);
+    Task<Result> IngestAsync(ScadaIngestRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Esik suresi boyunca haber alinamayan cihazlari <c>Offline</c>'a ceker ve

@@ -4,8 +4,8 @@ using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
 using CabinetOs.Model.Dtos.Realtime.Queries;
 using CabinetOs.Model.Dtos.Scada.Commands;
-using CabinetOs.Model.Dtos.Scada.Queries;
 using CabinetOs.Model.Entities;
+using Microsoft.Extensions.Logging;
 // Ad ALIASI zorunlu: `DeviceStatus` hem bir lookup ENTITY'si hem bir enum. Ikisi
 // de bu dosyanin kapsaminda; nitelenmeden yazilirsa derleyici belirsizlik hatasi
 // verir. Burada gecen her `DeviceStatus` ENUM'dur.
@@ -22,26 +22,48 @@ namespace CabinetOs.Business.Concrete;
 /// yazma — yarim kalan bir ingest bir sonrakiyle duzelir), ve DEGERI DEGISMEYEN
 /// KANAL ICIN HIC YAZMA YOK.
 ///
+/// <b>Basarili ingest GOVDESIZ 200 doner.</b> Eskiden bir sayac seti donuyordu
+/// (<c>accepted/changed/skipped/eventsRecorded</c>); muhatabi yanlisti. SCADA kac
+/// okumanin islendigiyle ilgilenmez — sahada tanimsiz bir modul cikmasini tespit
+/// etmesi gereken taraf BIZ'iz ve bunun yeri istegin yaniti degil <c>Warning</c>
+/// log'udur. Sayaclar o log satirinin icinde, yalnizca atlanan varken yazilir.
+///
 /// Sozlesme: <c>docs/api-contract/07-scada-ingest.md</c> + <c>09-realtime.md</c>
 /// </summary>
 public class ScadaService : IScadaService
 {
+    /// <summary>
+    /// Log satirina yazilacak tanimsiz referans ORNEGI ust siniri — liste basina
+    /// ayri ayri uygulanir.
+    ///
+    /// Yanlis yapilandirilmis bir SCADA yuzlerce bilinmeyen referans
+    /// gonderebilir; kirpma olmasaydi TEK bir log satiri megabaytlara cikardi.
+    /// Sayaclar kirpilmaz, yalnizca ornek listeleri kirpilir.
+    /// </summary>
+    private const int MaxLoggedRefs = 50;
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IDiagramNotifier _notifier;
+    private readonly ILogger<ScadaService> _logger;
 
-    public ScadaService(IUnitOfWork unitOfWork, IValidationService validationService, IDiagramNotifier notifier)
+    public ScadaService(
+        IUnitOfWork unitOfWork,
+        IValidationService validationService,
+        IDiagramNotifier notifier,
+        ILogger<ScadaService> logger)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _notifier = notifier;
+        _logger = logger;
     }
 
-    public async Task<Result<ScadaIngestResponse>> IngestAsync(ScadaIngestRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result> IngestAsync(ScadaIngestRequest request, CancellationToken cancellationToken = default)
     {
         var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
-            return Result<ScadaIngestResponse>.Validation(validationResult.Failures, description: "Validation failed for ScadaIngestRequest");
+            return Result.Validation(validationResult.Failures, description: "Validation failed for ScadaIngestRequest");
 
         var cabinet = await _unitOfWork.Cabinets.GetAsync(
             where: c => c.Id == request.CabinetId && c.IsActive,
@@ -49,13 +71,13 @@ public class ScadaService : IScadaService
             cancellationToken: cancellationToken);
 
         if (cabinet == null)
-            return Result<ScadaIngestResponse>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
+            return Result.NotFound(description: "Kabin bulunamadi veya pasif durumda");
 
         // SCADA'si kapali bir kabine telemetri yazmak celiskilidir ve sessizce
         // kabul etmek yapilandirma hatasini gorunmez kilardi. 404 DEGIL 400:
         // kabin var, ayar yanlis.
         if (!cabinet.ScadaIsEnabled)
-            return Result<ScadaIngestResponse>.Validation(
+            return Result.Validation(
                 new Dictionary<string, string[]> { ["CabinetId"] = ["Bu kabinde SCADA kapali"] },
                 description: "SCADA disabled for cabinet");
 
@@ -84,9 +106,14 @@ public class ScadaService : IScadaService
         var channelByRef = channels.ToDictionary(c => (c.DeviceId, c.ChannelNumber));
 
         var now = DateTime.UtcNow;
-        var response = new ScadaIngestResponse { ReceivedAtUtc = now };
         var channelChanges = new List<ChannelValueChange>();
         var statusChanges = new List<DeviceStatusChange>();
+
+        // Sayaclar artik YANITA degil LOG SATIRINA gidiyor. Yalnizca atlanan
+        // varken yazildiklari icin, saglikli bir sahada hicbir sey loglanmaz;
+        // bir sorun varken de "kac tanesi islendi" baglami elde kalir.
+        int accepted = 0, changed = 0, eventsRecorded = 0;
+        var skipTally = new SkipTally();
 
         // Olayin SAHADA gerceklestigi an. SCADA gondermediyse kendi saatimize
         // duseriz — iki kolonun esit olmasi "damga gelmedi" demektir ve bu bilgi
@@ -100,10 +127,13 @@ public class ScadaService : IScadaService
             {
                 // Tanimayan referans TUM istegi dusurmez: sahada bir modul
                 // eklendiginde o kabinin butun telemetrisi durmamali.
-                Skip(response, reading.ExternalCode);
-                // Cihaz cozulemedigi icin kanallari da cozulemez; hepsi atlanir.
-                foreach (var channel in reading.Channels)
-                    Skip(response, $"{reading.ExternalCode}/ch:{channel.ChannelNumber}");
+                //
+                // Cihaz cozulemedigi icin kanallari da cozulemez; SAYACA hepsi
+                // ayri ayri girer (cihaz 1 + her kanali 1), ama log satirinda
+                // tek bir "MOD-09(3 kanal)" girdisi olarak gorunurler — 512
+                // kanalli tanimsiz bir cihaz aksi halde tek basina 513 ornek
+                // uretir ve satiri okunmaz hale getirirdi.
+                skipTally.AddDevice(reading.ExternalCode, reading.Channels.Count);
                 continue;
             }
 
@@ -126,11 +156,11 @@ public class ScadaService : IScadaService
             {
                 if (!channelByRef.TryGetValue((device.Id, channelReading.ChannelNumber), out var channel))
                 {
-                    Skip(response, $"{reading.ExternalCode}/ch:{channelReading.ChannelNumber}");
+                    skipTally.AddChannel(reading.ExternalCode, channelReading.ChannelNumber);
                     continue;
                 }
 
-                response.Accepted++;
+                accepted++;
 
                 // DEGISMEYEN KANALA HIC DOKUNULMAZ. Iki kazanc: EF bu satiri
                 // UPDATE listesine hic almaz, ve degismeyen bir deger icin
@@ -143,7 +173,7 @@ public class ScadaService : IScadaService
 
                 channel.CurrentValue = channelReading.Value;
                 channel.ValueUpdatedAt = now;
-                response.Changed++;
+                changed++;
 
                 channelChanges.Add(new ChannelValueChange
                 {
@@ -167,7 +197,7 @@ public class ScadaService : IScadaService
                         OccurredAtUtc = occurredAt,
                         ReceivedAtUtc = now
                     });
-                    response.EventsRecorded++;
+                    eventsRecorded++;
                 }
             }
         }
@@ -207,7 +237,29 @@ public class ScadaService : IScadaService
 
         _ = previousCabinetStatus; // durum farki bugun kullanilmiyor; olay kosulsuz gidiyor
 
-        return Result<ScadaIngestResponse>.Success(response);
+        // Sessiz atlamayi gorunur kilan TEK sey. Yanit gövdesizdir; SCADA kac
+        // okumanin islendigiyle ilgilenmez, sahada tanimsiz bir modul cikmasini
+        // tespit etmesi gereken taraf biziz.
+        //
+        // Bastirma/deduplikasyon YOK (bilincli): yanlis yapilandirilmis bir
+        // kabin, ingest sikligi neyse o kadar satir yazar. Sorun cikarsa care,
+        // referans basina bastirmayi IDistributedCache ile eklemektir.
+        if (skipTally.Total > 0)
+        {
+            _logger.LogWarning(
+                "Kabin {CabinetId}: {SkippedCount} telemetri referansi tanimsiz. " +
+                "Tanimsiz cihazlar: {UnknownDevices}. Tanimsiz kanallar: {UnknownChannels}. " +
+                "accepted={Accepted} changed={Changed} eventsRecorded={EventsRecorded}",
+                cabinet.Id,
+                skipTally.Total,
+                skipTally.DescribeDevices(),
+                skipTally.DescribeChannels(),
+                accepted,
+                changed,
+                eventsRecorded);
+        }
+
+        return Result.Success();
     }
 
     public async Task<int> SweepStaleDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default)
@@ -332,13 +384,44 @@ public class ScadaService : IScadaService
             || string.Equals(channel.EventTriggerValue, value, StringComparison.Ordinal);
     }
 
-    private static void Skip(ScadaIngestResponse response, string reference)
+    /// <summary>
+    /// Bir ingest istegi boyunca cozumlenemeyen referanslari toplar.
+    ///
+    /// Cihaz ve kanal AYRI listelerde tutulur: tanimsiz bir cihazin butun
+    /// kanallari da tanimsizdir, ama onlari tek tek yazmak log satirini
+    /// sisirmekten baska bir sey yapmaz — cihaz girdisi kanal sayisini kendi
+    /// icinde tasir. <see cref="Total"/> ise eski davranisi korur ve her ikisini
+    /// de tek tek sayar (cihaz 1 + her kanali 1).
+    /// </summary>
+    private sealed class SkipTally
     {
-        response.Skipped++;
-        // Referans listesi KIRPILIR ama sayac kirpilmaz: yanlis yapilandirilmis bir
-        // SCADA yuzlerce bilinmeyen kanal gonderebilir ve govde patlardi.
-        if (response.SkippedRefs.Count < ScadaIngestResponse.MaxSkippedRefs)
-            response.SkippedRefs.Add(reference);
+        private readonly List<string> _devices = [];
+        private readonly List<string> _channels = [];
+
+        /// <summary>Atlanan referans sayisi — ORNEK listeleri kirpilsa bile TAM.</summary>
+        public int Total { get; private set; }
+
+        public void AddDevice(string externalCode, int channelCount)
+        {
+            Total += 1 + channelCount;
+            if (_devices.Count < MaxLoggedRefs)
+                _devices.Add($"{externalCode}({channelCount} kanal)");
+        }
+
+        public void AddChannel(string externalCode, int channelNumber)
+        {
+            Total++;
+            if (_channels.Count < MaxLoggedRefs)
+                _channels.Add($"{externalCode}/ch:{channelNumber}");
+        }
+
+        public string DescribeDevices() => Describe(_devices);
+        public string DescribeChannels() => Describe(_channels);
+
+        // Bos liste "yok" yazar: log satirinda bos bir alan, "hic yoktu" ile
+        // "yazilmayi unuttuk" arasinda ayrim birakmazdi.
+        private static string Describe(List<string> refs) =>
+            refs.Count == 0 ? "yok" : string.Join(", ", refs);
     }
 
     /// <summary>
