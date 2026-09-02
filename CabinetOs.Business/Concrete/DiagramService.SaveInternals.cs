@@ -1,6 +1,6 @@
 ﻿using CabinetOs.Business.Utils;
 using CabinetOs.Model.Dtos.Diagram.Commands;
-using CabinetOs.Model.Dtos.Diagram.Commands.Draft;
+using CabinetOs.Model.Dtos.Diagram.Commands.Items;
 using CabinetOs.Model.Entities;
 using static CabinetOs.Model.Enums.EntityEnums;
 

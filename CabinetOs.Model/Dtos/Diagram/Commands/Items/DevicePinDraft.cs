@@ -1,7 +1,7 @@
 using CabinetOs.Core.Model;
 using FluentValidation;
 
-namespace CabinetOs.Model.Dtos.Diagram.Commands.Draft;
+namespace CabinetOs.Model.Dtos.Diagram.Commands.Items;
 
 /// <summary>
 /// Yeni bir cihazin TEK bir pini icin istemcinin urettigi kimlik.
