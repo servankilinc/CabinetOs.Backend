@@ -74,3 +74,81 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
         RuleForEach(v => v.IoChannels).SetValidator(new DeviceIoChannelDraftValidator());
     }
 }
+
+
+
+
+
+
+#region DevicePinDraft
+
+/// <summary>
+/// Yeni bir cihazin TEK bir pini icin istemcinin urettigi kimlik.
+///
+/// <b>Burada pin VERISI yoktur, yalnizca kimlik vardir.</b> Ad, konum, fonksiyon,
+/// yon ve gerilim sunucuda <c>ComponentTemplatePin</c>'den kopyalanmaya devam eder;
+/// istemciden gelen tek sey Guid ve o Guid'in hangi sablon pinine karsilik geldigi.
+/// Pin semasinin tek yazari hala sablon ekranidir (ROADMAP R2) — bu tip o kurali
+/// delmez, sadece kimlik uretimini istemciye tasir.
+///
+/// Sunucu <c>ComponentTemplatePinId</c> kumesinin sablonun pin kumesine BIREBIR
+/// esit oldugunu dogrular; eksik, fazla veya tekrarli gonderim 400'dur.
+/// </summary>
+public class DevicePinDraft : IDto
+{
+    /// <summary> Olusacak <c>Pin</c> satirinin birincil anahtari. </summary>
+    public Guid Id { get; set; }
+
+    /// <summary> Bu pinin turedigi sablon pini. </summary>
+    public Guid ComponentTemplatePinId { get; set; }
+}
+
+public class DevicePinDraftValidator : AbstractValidator<DevicePinDraft>
+{
+    public DevicePinDraftValidator()
+    {
+        RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Pin kimligi zorunlu");
+        RuleFor(v => v.ComponentTemplatePinId).NotEqual(Guid.Empty).WithMessage("Sablon pini zorunlu");
+    }
+}
+#endregion
+
+
+
+
+
+
+
+
+
+#region DeviceIoChannelDraft
+
+/// <summary>
+/// Yeni bir cihazin TEK bir telemetri kanali icin istemcinin urettigi kimlik.
+///
+/// <b>Neden pinin icine gomulu degil.</b> "Ayni cihazda ayni kanal numarasi TEK
+/// bir <c>IoChannel</c>'dir" kurali (<c>IX_IoChannel_DeviceId_ChannelNumber</c>)
+/// boyle YAPISAL olarak tutarsiz ifade edilemez hale gelir. Her pin kendi
+/// <c>IoChannelId</c>'sini tasisaydi ayni kanali gosteren iki pinin ayni Id'yi
+/// tasidigi her gonderide ayrica dogrulanmak zorunda kalirdi.
+///
+/// Sunucu kanal numarasi kumesinin, sablon pinlerinin null olmayan farkli kanal
+/// numaralarina BIREBIR esit oldugunu dogrular.
+/// </summary>
+public class DeviceIoChannelDraft : IDto
+{
+    /// <summary> Olusacak <c>IoChannel</c> satirinin birincil anahtari. </summary>
+    public Guid Id { get; set; }
+
+    /// <summary> SCADA'nin kanali cozdugu numara; cihaz icinde benzersiz. </summary>
+    public int ChannelNumber { get; set; }
+}
+
+public class DeviceIoChannelDraftValidator : AbstractValidator<DeviceIoChannelDraft>
+{
+    public DeviceIoChannelDraftValidator()
+    {
+        RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Kanal kimligi zorunlu");
+    }
+} 
+#endregion
