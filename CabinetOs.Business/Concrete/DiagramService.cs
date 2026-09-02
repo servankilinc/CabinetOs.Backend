@@ -63,7 +63,7 @@ public partial class DiagramService : IDiagramService
                 LastSeen = d.LastSeen,
                 // Sablon ozeti cihazla birlikte tasinir: sablon pasife alinsa bile
                 // kabin dogru boyut ve renkle render olmali.
-                Template = new DiagramTemplateDto
+                Template = new DiagramComponentTemplateDto
                 {
                     Id = d.ComponentTemplate!.Id,
                     Name = d.ComponentTemplate.Name,
