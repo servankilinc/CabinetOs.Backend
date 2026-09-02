@@ -2,6 +2,7 @@
 using CabinetOs.Model.Dtos.Diagram.Commands;
 using CabinetOs.Model.Dtos.Diagram.Commands.Draft;
 using CabinetOs.Model.Entities;
+using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Business.Concrete;
 
@@ -42,14 +43,14 @@ public partial class DiagramService
 
         // Sablon pinleri yalnizca YENI cihazlar icin gerekir: mevcut bir cihazin
         // pinleri zaten var ve sablonu degistirilemiyor.
-        var newDeviceTemplateIds = request.Devices.Upserted
-            .Where(d => !devices.Live.ContainsKey(d.Id))
-            .Select(d => d.ComponentTemplateId)
-            .Distinct().ToList();
+        var newDevices = request.Devices.Upserted.Where(d => !devices.Live.ContainsKey(d.Id)).ToList();
+        var newDeviceTemplateIds = newDevices.Select(d => d.ComponentTemplateId).Distinct().ToList();
 
         var referencedPinIds = request.Connections.Upserted
             .SelectMany(c => new[] { c.SourcePinId, c.TargetPinId })
             .Distinct().ToList();
+
+        var templatePins = await LoadTemplatePinsAsync(newDeviceTemplateIds, cancellationToken);
 
         return new SaveContext
         {
@@ -58,13 +59,88 @@ public partial class DiagramService
             Annotations = annotations,
             DeletedDeviceIds = deletedDeviceIds,
             ActiveTemplateIds = await LoadActiveTemplateIdsAsync(newDeviceTemplateIds, cancellationToken),
-            TemplatePins = await LoadTemplatePinsAsync(newDeviceTemplateIds, cancellationToken),
+            TemplatePins = templatePins,
             Pins = await LoadPinsAsync(cabinetId, referencedPinIds, cancellationToken),
             PinsOfDeletedDevices = await LoadPinsOfDeletedDevicesAsync(deletedDeviceIds, cancellationToken),
             CascadeConnections = await LoadCascadeConnectionsAsync(cabinetId, deletedDeviceIds, cancellationToken),
             PinPairCandidates = await LoadPinPairCandidatesAsync(cabinetId, referencedPinIds, cancellationToken),
-            DeviceExternalCodes = await LoadDeviceExternalCodesAsync(cabinetId, request, cancellationToken)
+            DeviceExternalCodes = await LoadDeviceExternalCodesAsync(cabinetId, request, cancellationToken),
+            NewPins = BuildNewPinRefs(newDevices, templatePins),
+            ClaimedPinIds = await LoadClaimedPinIdsAsync(newDevices, cancellationToken),
+            ClaimedIoChannelIds = await LoadClaimedIoChannelIdsAsync(newDevices, cancellationToken)
         };
+    }
+
+    /// <summary>
+    /// Bu gonderide DOGACAK pinlerin kimlik dizini.
+    ///
+    /// Ayni gonderide hem cihaz birakilip hem ona kablo cizilebiliyor (pin Id'lerini
+    /// artik istemci uretiyor), dolayisiyla bir kablo ucu DB'de olmayan bir pini
+    /// gosterebilir. <see cref="ResolveEndpoint"/> once <c>Pins</c>'e, sonra buraya
+    /// bakar.
+    ///
+    /// Gerilim taslaktan degil SABLON pininden okunur: taslak zaten veri tasimiyor.
+    /// Cozulemeyen bir <c>ComponentTemplatePinId</c> burada sessizce atlanir —
+    /// sema uyumsuzlugunu <see cref="ValidateDevicePinIdentities"/> zaten raporluyor.
+    /// </summary>
+    private static Dictionary<Guid, PinRef> BuildNewPinRefs(
+        List<DeviceDraft> newDevices,
+        Dictionary<Guid, List<ComponentTemplatePin>> templatePins)
+    {
+        var refs = new Dictionary<Guid, PinRef>();
+
+        foreach (var draft in newDevices)
+        {
+            if (!templatePins.TryGetValue(draft.ComponentTemplateId, out var pins)) continue;
+            var byId = pins.ToDictionary(p => p.Id);
+
+            foreach (var pin in draft.Pins)
+            {
+                if (!byId.TryGetValue(pin.ComponentTemplatePinId, out var templatePin)) continue;
+                // Indeksleyici: ayni Id iki kez gelirse sozluk PATLAMAMALI, hata
+                // olarak raporlanmali (bkz. ValidateDevicePinIdentities).
+                refs[pin.Id] = new PinRef(draft.Id, templatePin.VoltageLevel);
+            }
+        }
+
+        return refs;
+    }
+
+    /// <summary>
+    /// Gonderilen pin Id'lerinden DB'de ZATEN var olanlar.
+    ///
+    /// <c>ignoreFilters: true</c> zorunlu: <c>Pin</c> soft-delete edilebilir ve
+    /// silinmis bir satir birincil anahtar uzayini isgal etmeye devam eder. Bu
+    /// kontrol olmasaydi carpisan bir Id INSERT'e duser ve PK ihlaliyle 500 verirdi
+    /// — kablolarda ayni tuzak <see cref="LoadConnectionsAsync"/>'de anlatiliyor.
+    /// </summary>
+    private async Task<HashSet<Guid>> LoadClaimedPinIdsAsync(List<DeviceDraft> newDevices, CancellationToken cancellationToken)
+    {
+        var ids = newDevices.SelectMany(d => d.Pins).Select(p => p.Id).Distinct().ToList();
+        if (ids.Count == 0) return [];
+
+        var rows = await _unitOfWork.Pins.GetAllAsync(
+            select: p => p.Id,
+            where: p => ids.Contains(p.Id),
+            ignoreFilters: true,
+            cancellationToken: cancellationToken) ?? [];
+
+        return rows.ToHashSet();
+    }
+
+    /// <summary>Gonderilen kanal Id'lerinden DB'de ZATEN var olanlar — pinlerle ayni gerekce.</summary>
+    private async Task<HashSet<Guid>> LoadClaimedIoChannelIdsAsync(List<DeviceDraft> newDevices, CancellationToken cancellationToken)
+    {
+        var ids = newDevices.SelectMany(d => d.IoChannels).Select(c => c.Id).Distinct().ToList();
+        if (ids.Count == 0) return [];
+
+        var rows = await _unitOfWork.IoChannels.GetAllAsync(
+            select: c => c.Id,
+            where: c => ids.Contains(c.Id),
+            ignoreFilters: true,
+            cancellationToken: cancellationToken) ?? [];
+
+        return rows.ToHashSet();
     }
 
     /// <summary>Gonderide gecen tum cihaz Id'leri; TAKIPLI, kabin filtresi YOK.</summary>
@@ -285,10 +361,15 @@ public partial class DiagramService
 
     /// <summary>
     /// Cihaz taslaklari: hedef satir erisilebilir mi, yeniyse sablonu gecerli mi,
-    /// mevcutsa sablonu ayni mi.
+    /// mevcutsa sablonu ayni mi, ve gonderilen pin/kanal kimlikleri tutarli mi.
     /// </summary>
     private static void ValidateDevices(DiagramSaveRequest request, SaveContext context, Dictionary<string, List<string>> errors)
     {
+        // Kimlik tekilligi GONDERININ TAMAMINDA aranir: iki farkli cihazin ayni pin
+        // Id'sini paylasmasi da bir carpismadir.
+        var seenPinIds = new HashSet<Guid>();
+        var seenChannelIds = new HashSet<Guid>();
+
         for (int i = 0; i < request.Devices.Upserted.Count; i++)
         {
             var draft = request.Devices.Upserted[i];
@@ -302,12 +383,90 @@ public partial class DiagramService
                 // guncelleme degil, cihazi bastan yaratmaktir.
                 if (device.ComponentTemplateId != draft.ComponentTemplateId)
                     AddError(errors, $"{key}.ComponentTemplateId", "Mevcut bir cihazin sablonu degistirilemez; silip yeniden ekleyin");
+
+                // Pin ve kanal SALT-OLUSTURMA. Mevcut cihazin pinleri zaten var;
+                // ikinci kez gonderilen bir kimlik kumesi ya cop ya da bir
+                // istemci hatasidir — sessizce yok saymak ikincisini gizlerdi.
+                if (draft.Pins.Count > 0)
+                    AddError(errors, $"{key}.Pins", "Mevcut bir cihaza pin gonderilemez; pinleri olusturulurken uretilir");
+                if (draft.IoChannels.Count > 0)
+                    AddError(errors, $"{key}.IoChannels", "Mevcut bir cihaza kanal gonderilemez; kanallari olusturulurken uretilir");
+
+                continue;
             }
-            else if (!context.ActiveTemplateIds.Contains(draft.ComponentTemplateId))
+
+            if (!context.ActiveTemplateIds.Contains(draft.ComponentTemplateId))
             {
+                // Sablon cozulemediyse pin semasi da bilinmiyor: asagidaki kume
+                // karsilastirmasi yalnizca kafa karistirici ikinci bir hata uretirdi.
                 AddError(errors, $"{key}.ComponentTemplateId", "Sablon bulunamadi veya pasif durumda");
+                continue;
             }
+
+            ValidateDevicePinIdentities(draft, key, context, seenPinIds, seenChannelIds, errors);
         }
+    }
+
+    /// <summary>
+    /// Yeni bir cihazla birlikte gonderilen pin ve kanal KIMLIKLERI.
+    ///
+    /// Iki soru sorulur: (1) kume sablonun semasiyla birebir ortusuyor mu, (2)
+    /// Id'ler bos degil ve hicbir yerde carpismiyor mu. Pin VERISI dogrulanmaz
+    /// cunku istemci veri gondermiyor — her alan sablondan kopyalaniyor.
+    ///
+    /// Sema kontrolu sekli bir katilik degil: eksik pin gonderen bir istemci
+    /// cihazi kopuk pinlerle yaratir, fazla gonderen ise sablonun disinda bir pin
+    /// uydurmus olurdu ki bu tam da "pin semasinin tek yazari sablondur" kuralini
+    /// delmek demektir.
+    /// </summary>
+    private static void ValidateDevicePinIdentities(
+        DeviceDraft draft,
+        string key,
+        SaveContext context,
+        HashSet<Guid> seenPinIds,
+        HashSet<Guid> seenChannelIds,
+        Dictionary<string, List<string>> errors)
+    {
+        var templatePins = context.TemplatePins.GetValueOrDefault(draft.ComponentTemplateId) ?? [];
+
+        // ---- pinler ----
+        var expectedTemplatePinIds = templatePins.Select(p => p.Id).ToHashSet();
+        var sentTemplatePinIds = new HashSet<Guid>();
+
+        foreach (var pin in draft.Pins)
+        {
+            if (!sentTemplatePinIds.Add(pin.ComponentTemplatePinId))
+                AddError(errors, $"{key}.Pins", "Ayni sablon pini icin birden fazla pin gonderildi");
+
+            if (!seenPinIds.Add(pin.Id))
+                AddError(errors, $"{key}.Pins", "Ayni pin kimligi gonderide birden fazla kez var");
+            else if (context.ClaimedPinIds.Contains(pin.Id))
+                AddError(errors, $"{key}.Pins", "Bu pin kimligi zaten kullanimda");
+        }
+
+        if (!sentTemplatePinIds.SetEquals(expectedTemplatePinIds))
+            AddError(errors, $"{key}.Pins", "Gonderilen pinler sablonun pin semasiyla ortusmuyor");
+
+        // ---- kanallar ----
+        var expectedChannelNumbers = templatePins
+            .Where(p => p.ChannelNumber.HasValue)
+            .Select(p => p.ChannelNumber!.Value)
+            .ToHashSet();
+        var sentChannelNumbers = new HashSet<int>();
+
+        foreach (var channel in draft.IoChannels)
+        {
+            if (!sentChannelNumbers.Add(channel.ChannelNumber))
+                AddError(errors, $"{key}.IoChannels", "Ayni kanal numarasi icin birden fazla kanal gonderildi");
+
+            if (!seenChannelIds.Add(channel.Id))
+                AddError(errors, $"{key}.IoChannels", "Ayni kanal kimligi gonderide birden fazla kez var");
+            else if (context.ClaimedIoChannelIds.Contains(channel.Id))
+                AddError(errors, $"{key}.IoChannels", "Bu kanal kimligi zaten kullanimda");
+        }
+
+        if (!sentChannelNumbers.SetEquals(expectedChannelNumbers))
+            AddError(errors, $"{key}.IoChannels", "Gonderilen kanallar sablonun kanal numaralariyla ortusmuyor");
     }
 
     /// <summary>
@@ -357,8 +516,8 @@ public partial class DiagramService
             // Gerilim uyusmazligi: iki taraf da BELIRTILMISSE ve farkliysa reddedilir.
             // Biri null ise ("belirtilmemis") susulur — bilinmeyeni hata saymak,
             // gerilimi henuz girilmemis sablonlarla calismayi imkansiz kilardi.
-            if (source.VoltageLevel.HasValue && target.VoltageLevel.HasValue
-                && source.VoltageLevel.Value != target.VoltageLevel.Value)
+            if (source.Value.VoltageLevel.HasValue && target.Value.VoltageLevel.HasValue
+                && source.Value.VoltageLevel.Value != target.Value.VoltageLevel.Value)
             {
                 AddError(errors, key, "Farkli gerilim seviyesindeki pinler baglanamaz");
             }
@@ -459,22 +618,32 @@ public partial class DiagramService
     }
 
     /// <summary>
-    /// Bir kablo ucunu cozer. Uc her zaman KALICI bir pindir; cozulemezse hatayi
-    /// yazar ve null doner. Doner deger gerilim karsilastirmasi icin kullanilir.
+    /// Bir kablo ucunu cozer. Iki kaynak vardir: DB'deki KALICI pinler ve AYNI
+    /// GONDERIDE dogacak pinler — Id'leri istemci urettigi icin bir cihaz
+    /// birakilip ona ayni kaydetmede kablo cizilebiliyor.
+    ///
+    /// Cozulemezse hatayi yazar ve null doner. Doner deger gerilim karsilastirmasi
+    /// icin kullanilir; iki kaynak da ayni <see cref="PinRef"/> sorusuna cevap
+    /// verdigi icin cagiran taraf hangisinden geldigini bilmek zorunda degil.
     /// </summary>
-    private static Pin? ResolveEndpoint(Guid pinId, SaveContext context, Dictionary<string, List<string>> errors, string errorKey)
+    private static PinRef? ResolveEndpoint(Guid pinId, SaveContext context, Dictionary<string, List<string>> errors, string errorKey)
     {
-        if (!context.Pins.TryGetValue(pinId, out var pin))
+        PinRef reference;
+
+        if (context.Pins.TryGetValue(pinId, out var pin))
+            reference = new PinRef(pin.DeviceId, pin.VoltageLevel);
+        else if (!context.NewPins.TryGetValue(pinId, out reference))
         {
             AddError(errors, errorKey, "Pin bu kabinde bulunamadi");
             return null;
         }
-        if (context.DeletedDeviceIds.Contains(pin.DeviceId))
+
+        if (context.DeletedDeviceIds.Contains(reference.DeviceId))
         {
             AddError(errors, errorKey, "Cihazi ayni gonderide silinen bir pine kablo cizilemez");
             return null;
         }
-        return pin;
+        return reference;
     }
 
     /// <summary>Ciftin YONSUZ anahtari: (a,b) ile (b,a) ayni kabloyu gosterir.</summary>
@@ -487,12 +656,13 @@ public partial class DiagramService
     /// Silmeler. Sira TERS BAGIMLILIK yonunde: once kablolar, sonra pinler, en son
     /// cihazlar — aksi halde silinen bir pine bagli kablo bir an icin oksuz kalirdi.
     ///
-    /// Karsiligi bulunamayan Id'ler ATLANIR ve sayilir. Bu, istemcinin "bu kayit
-    /// sunucuya gitti mi" bilgisini tasima zorunlulugunu kaldiran karardir: iki kez
-    /// gonderilen ya da hic olusmamis bir silme, kullanicinin o ana kadarki tum
-    /// duzenlemesini 400 ile cope atmaz.
+    /// Karsiligi bulunamayan Id'ler SESSIZCE ATLANIR. Bu, istemcinin "bu kayit
+    /// sunucuya gitti mi" bilgisini tasima zorunlulugunu kaldiran karardir (K7): iki
+    /// kez gonderilen ya da hic olusmamis bir silme, kullanicinin o ana kadarki tum
+    /// duzenlemesini 400 ile cope atmaz. Atlananlar SAYILMAZ — yaniti okuyan kimse
+    /// yoktu (bkz. <c>DiagramSaveResponse</c>).
     /// </summary>
-    private int ApplyDeletions(DiagramSaveRequest request, SaveContext context)
+    private void ApplyDeletions(DiagramSaveRequest request, SaveContext context)
     {
         // 1) Kablolar: dogrudan silinenler + cihazi kalkanlar
         var connectionsToRemove = request.Connections.Deleted
@@ -523,22 +693,14 @@ public partial class DiagramService
             .ToList();
         if (annotationsToRemove.Count > 0)
             _unitOfWork.DiagramAnnotations.Delete(annotationsToRemove);
-
-        // Atlanan = karsiliginda BU KABINDE canli bir satir bulunmayan her silme
-        // istegi. Cascade ile kalkanlar istemcinin istegi degildi, sayilmaz.
-        return request.Connections.Deleted.Count(id => !context.Connections.Live.ContainsKey(id))
-             + request.Devices.Deleted.Count(id => !context.Devices.Live.ContainsKey(id))
-             + request.DiagramAnnotations.Deleted.Count(id => !context.Annotations.Live.ContainsKey(id));
     }
 
     /// <summary>
     /// Yazmalar. Uc aile birbirinden bagimsiz; sira onemli degil.
     /// Her taslak icin tek soru: satir <c>Live</c> mi (guncelle) yoksa yok mu (olustur).
     /// </summary>
-    private int ApplyUpserts(Guid cabinetId, DiagramSaveRequest request, SaveContext context)
+    private void ApplyUpserts(Guid cabinetId, DiagramSaveRequest request, SaveContext context)
     {
-        var instantiatedPinCount = 0;
-
         foreach (var draft in request.Devices.Upserted)
         {
             if (context.Devices.Live.TryGetValue(draft.Id, out var device))
@@ -562,7 +724,7 @@ public partial class DiagramService
             // Pini olmayan sablon: cihaz pinsiz dogar. Bu bir SECIM degil, sablonun
             // sonucu — pin yazarligi sablon ekranina aittir.
             if (context.TemplatePins.TryGetValue(draft.ComponentTemplateId, out var templatePins))
-                instantiatedPinCount += InstantiateTemplatePins(device, templatePins);
+                InstantiateTemplatePins(device, templatePins, draft);
         }
 
         foreach (var draft in request.Connections.Upserted)
@@ -598,8 +760,6 @@ public partial class DiagramService
             WriteAnnotation(annotation, draft);
             _unitOfWork.DiagramAnnotations.Add(annotation);
         }
-
-        return instantiatedPinCount;
     }
 
     /// <summary>
@@ -664,24 +824,33 @@ public partial class DiagramService
     /// cozuyor ve tanimadigi kanali sessizce atliyor (K7). Kanallari ureten baska bir
     /// yol da yok — urunde cihaz yaratmanin tek yolu paletten birakmak.
     ///
-    /// <b>Neden navigasyon, neden skaler FK degil.</b> <c>pin.Device = device</c> ve
-    /// <c>pin.IoChannel = channel</c> yaziliyor cunku pin ve kanal Id'leri
-    /// <c>SaveChanges</c>'e kadar kesinlesmiyor. EF ekleme sirasini ve FK
-    /// degerlerini bu iliskilerden kendisi cozer.
+    /// <b>Id'leri ISTEMCI uretir, icerigi SUNUCU.</b> Taslak yalnizca
+    /// "su sablon pini icin su Guid'i kullan" der; ad, konum, fonksiyon, yon ve
+    /// gerilim buradaki kopyalamayla gelmeye devam eder. Taslakta karsiligi
+    /// bulunmayan bir sablon pini olamaz — <see cref="ValidateDevicePinIdentities"/>
+    /// kumelerin birebir ortustugunu yazmadan once dogruladi.
+    ///
+    /// <b>Neden hala navigasyon, neden skaler FK degil.</b> <c>pin.Device = device</c>
+    /// ve <c>pin.IoChannel = channel</c> yazmaya devam ediyoruz: Id'lerin biliniyor
+    /// olmasi EF'in ekleme SIRASINI cozmesini gereksiz kilmaz, elle FK atamak ise
+    /// ayni bilgiyi iki yerde tutmak olurdu.
     /// </summary>
-    private int InstantiateTemplatePins(Device device, List<ComponentTemplatePin> templatePins)
+    private void InstantiateTemplatePins(Device device, List<ComponentTemplatePin> templatePins, DeviceDraft draft)
     {
+        var pinIdByTemplatePinId = draft.Pins.ToDictionary(p => p.ComponentTemplatePinId, p => p.Id);
+        var channelIdByNumber = draft.IoChannels.ToDictionary(c => c.ChannelNumber, c => c.Id);
+
         // Ayni cihazda ayni kanal numarasi TEK bir IoChannel'dir. Sablonda iki pin
         // ayni kanali gosteriyorsa (or. bir girisin besleme ve donus ucu) ikisi de
         // ayni kanala baglanir; ayri ayri uretmek
         // IX_IoChannel_DeviceId_ChannelNumber'i ihlal ederdi.
         var channelsByNumber = new Dictionary<int, IoChannel>();
-        var count = 0;
 
         foreach (var templatePin in templatePins)
         {
             var pin = new Pin
             {
+                Id = pinIdByTemplatePinId[templatePin.Id],
                 Device = device,
                 ComponentTemplatePinId = templatePin.Id,
                 Name = templatePin.Name,
@@ -700,6 +869,7 @@ public partial class DiagramService
                 {
                     channel = new IoChannel
                     {
+                        Id = channelIdByNumber[channelNumber],
                         Device = device,
                         ChannelNumber = channelNumber,
                         Direction = templatePin.Direction,
@@ -714,10 +884,7 @@ public partial class DiagramService
             }
 
             _unitOfWork.Pins.Add(pin);
-            count++;
         }
-
-        return count;
     }
 
     // ==================== YARDIMCI TIPLER ====================
@@ -755,7 +922,20 @@ public partial class DiagramService
         public required Dictionary<Guid, string> DeviceExternalCodes { get; init; }
         /// <summary>Cift cakismasi icin bakilacak mevcut kablolar.</summary>
         public required List<PinPairRow> PinPairCandidates { get; init; }
+        /// <summary>Bu gonderide DOGACAK pinler — kablo uclari bunlari da gosterebilir.</summary>
+        public required Dictionary<Guid, PinRef> NewPins { get; init; }
+        /// <summary>Gonderilen pin Id'lerinden DB'de zaten var olanlar (carpisma).</summary>
+        public required HashSet<Guid> ClaimedPinIds { get; init; }
+        /// <summary>Gonderilen kanal Id'lerinden DB'de zaten var olanlar (carpisma).</summary>
+        public required HashSet<Guid> ClaimedIoChannelIds { get; init; }
     }
+
+    /// <summary>
+    /// Bir kablo ucunun cozumu. Kalici bir <c>Pin</c> satiri da, ayni gonderide
+    /// dogacak bir pin de bu iki soruya cevap verir; dogrulama baska bir sey
+    /// sormadigi icin ortak tip bu kadar dar.
+    /// </summary>
+    private readonly record struct PinRef(Guid DeviceId, VoltageLevel? VoltageLevel);
 
     private sealed record PinPairRow(Guid Id, Guid SourcePinId, Guid TargetPinId);
 

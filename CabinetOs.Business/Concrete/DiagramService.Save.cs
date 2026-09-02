@@ -53,21 +53,16 @@ public partial class DiagramService
             // cizdiginde (cizdi-vazgecti-yeniden cizdi, editorde siradan bir dizi),
             // silme bir UPDATE, olusturma bir INSERT'tur; tek batch'te EF'in sirasi
             // garanti degildir ve INSERT once giderse index ihlali 500 doner.
-            var skippedDeleteCount = ApplyDeletions(request, context);
+            ApplyDeletions(request, context);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // ---- FAZ 2: OLUSTURMALAR + GUNCELLEMELER ----
-            var instantiatedPinCount = ApplyUpserts(cabinetId, request, context);
+            ApplyUpserts(cabinetId, request, context);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
-            return Result<DiagramSaveResponse>.Success(new DiagramSaveResponse
-            {
-                InstantiatedPinCount = instantiatedPinCount,
-                SkippedDeleteCount = skippedDeleteCount,
-                SavedAtUtc = DateTime.UtcNow
-            });
+            return Result<DiagramSaveResponse>.Success(new DiagramSaveResponse { SavedAtUtc = DateTime.UtcNow });
         }
         catch
         {

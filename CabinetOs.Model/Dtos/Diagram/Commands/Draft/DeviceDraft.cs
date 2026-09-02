@@ -35,6 +35,26 @@ public class DeviceDraft : IDto, IIdentifiableDraft
 
     /// <summary> SCADA tarafindaki kimlik. Editorde bos birakilabilir, sonra atanir.</summary>
     public string? ExternalCode { get; set; }
+
+    /// <summary>
+    /// Olusacak pinlerin KIMLIKLERI — yalnizca OLUSTURMADA doldurulur.
+    ///
+    /// Sablonun pin kumesine birebir karsilik gelmelidir. Mevcut bir cihazda dolu
+    /// gonderilirse 400: pinleri zaten var ve sablonu degistirilemiyor.
+    ///
+    /// Pin VERISI tasimaz; sunucu her alani sablondan kopyalar (bkz.
+    /// <see cref="DevicePinDraft"/>).
+    /// </summary>
+    public List<DevicePinDraft> Pins { get; set; } = [];
+
+    /// <summary>
+    /// Olusacak telemetri kanallarinin KIMLIKLERI — yalnizca OLUSTURMADA.
+    /// Ad, okuma yolundaki <c>DiagramDeviceDto.IoChannels</c> ile AYNI tutuluyor:
+    /// istemci ayni listeyi okuyup geri gonderiyor, arada bir ad cevirisi olmamali.
+    /// Sablon pinlerinin null olmayan farkli kanal numaralarina birebir karsilik
+    /// gelmelidir (bkz. <see cref="DeviceIoChannelDraft"/>).
+    /// </summary>
+    public List<DeviceIoChannelDraft> IoChannels { get; set; } = [];
 }
 
 public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
@@ -46,5 +66,11 @@ public class DeviceDraftValidator : AbstractValidator<DeviceDraft>
         RuleFor(v => v.Name).NotEmpty().WithMessage("Cihaz adi zorunlu");
         RuleFor(v => v.Name).MaximumLength(128).WithMessage("Cihaz adi en fazla 128 karakter olabilir");
         RuleFor(v => v.ExternalCode).MaximumLength(64).WithMessage("Dis kod en fazla 64 karakter olabilir");
+
+        // Yalnizca tekil taslak sagligi. Kumelerin sablonla ORTUSMESI burada
+        // dogrulanamaz — sablonun pin semasi DB'den okunmadan bilinmiyor; o kontrol
+        // DiagramService.ValidateDevices'ta.
+        RuleForEach(v => v.Pins).SetValidator(new DevicePinDraftValidator());
+        RuleForEach(v => v.IoChannels).SetValidator(new DeviceIoChannelDraftValidator());
     }
 }

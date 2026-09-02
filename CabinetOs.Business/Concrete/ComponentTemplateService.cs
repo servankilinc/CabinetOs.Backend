@@ -35,7 +35,27 @@ public partial class ComponentTemplateService : IComponentTemplateService
                 Height = t.Height,
                 BackgroundColor = t.BackgroundColor,
                 BackgroundImageUrl = t.BackgroundImageUrl,
-                PinCount = t.ComponentTemplatePins!.Count()
+                // Pin semasi paletle birlikte gelir: istemci cihazi birakirken pin
+                // ve kanal Id'lerini kendisi uretiyor ve bunun icin semayi bilmek
+                // zorunda (bkz. ComponentTemplatePaletteDto).
+                //
+                // Siralama sunucudaki InstantiateTemplatePins'in okudugu sirayla
+                // AYNI (LoadTemplatePinsAsync da Name'e gore siralar) — iki taraf
+                // ayni semayi ayni sirada gorsun diye.
+                Pins = t.ComponentTemplatePins!
+                    .OrderBy(p => p.Name)
+                    .Select(p => new ComponentTemplatePalettePinDto
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        RelativeX = p.RelativeX,
+                        RelativeY = p.RelativeY,
+                        Side = p.Side,
+                        Function = p.Function,
+                        Direction = p.Direction,
+                        VoltageLevel = p.VoltageLevel,
+                        ChannelNumber = p.ChannelNumber
+                    }).ToList()
             },
             // Palet bir SECIM kaynagidir: pasife alinmis sablon yeni cihaz uretmemeli.
             where: t => t.IsActive,
