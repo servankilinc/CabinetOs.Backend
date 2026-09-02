@@ -1,6 +1,6 @@
 using CabinetOs.Core.Model;
 
-namespace CabinetOs.Model.Dtos.Diagram.Queries;
+namespace CabinetOs.Model.Dtos.Diagram.Queries.Items;
 
 /// <summary>
 /// Cihazin cozumlenmis sablon OZETI — yalnizca gorsel spec.

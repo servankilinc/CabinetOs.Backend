@@ -2,7 +2,7 @@ using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Dtos.CanvasSettings.Commands;
 using CabinetOs.Model.Dtos.CanvasSettings.Queries;
-using CabinetOs.Model.Dtos.Diagram.Queries;
+using CabinetOs.Model.Dtos.Diagram.Queries.Items;
 using CabinetOs.Model.Entities;
 using System.Linq.Expressions;
 

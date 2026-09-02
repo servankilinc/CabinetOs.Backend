@@ -1,5 +1,5 @@
 using System.Text.Json;
-using CabinetOs.Model.Dtos.Diagram.Queries;
+using CabinetOs.Model.Dtos.Common;
 
 namespace CabinetOs.Business.Utils;
 

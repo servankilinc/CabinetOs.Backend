@@ -1,7 +1,7 @@
 using CabinetOs.Core.Model;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Model.Dtos.Diagram.Queries;
+namespace CabinetOs.Model.Dtos.Diagram.Queries.Items;
 
 /// <summary>
 /// Cihaz olmayan diyagram elemani (serbest metin, kutu, not).

@@ -1,6 +1,6 @@
 using CabinetOs.Core.Model;
 
-namespace CabinetOs.Model.Dtos.Diagram.Queries;
+namespace CabinetOs.Model.Dtos.Diagram.Queries.Items;
 
 public class DiagramCabinetDto : IDto
 {

@@ -1,7 +1,7 @@
 using CabinetOs.Core.Model;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Model.Dtos.Diagram.Queries;
+namespace CabinetOs.Model.Dtos.Diagram.Queries.Items;
 
 /// <summary>
 /// Canvas'ta bir React Flow <c>&lt;Handle&gt;</c> olarak render edilen pin. Handle id'si dogrudan <see cref="Id"/>'dir (1:1, sonek yok).

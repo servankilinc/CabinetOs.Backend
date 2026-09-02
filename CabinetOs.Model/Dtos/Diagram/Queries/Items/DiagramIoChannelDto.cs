@@ -1,7 +1,7 @@
 using CabinetOs.Core.Model;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Model.Dtos.Diagram.Queries;
+namespace CabinetOs.Model.Dtos.Diagram.Queries.Items;
 
 /// <summary>
 /// Cihazin telemetri kanalinin STATIK tanimi.

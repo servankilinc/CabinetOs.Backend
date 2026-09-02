@@ -1,4 +1,5 @@
 using CabinetOs.Core.Model;
+using CabinetOs.Model.Dtos.Diagram.Queries.Items;
 
 namespace CabinetOs.Model.Dtos.Diagram.Queries;
 

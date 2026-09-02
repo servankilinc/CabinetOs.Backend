@@ -1,7 +1,8 @@
 using CabinetOs.Core.Model;
+using CabinetOs.Model.Dtos.Common;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Model.Dtos.Diagram.Queries;
+namespace CabinetOs.Model.Dtos.Diagram.Queries.Items;
 
 /// <summary>
 /// <see cref="SourceDeviceId"/> / <see cref="TargetDeviceId"/> DENORMALIZE'dir:

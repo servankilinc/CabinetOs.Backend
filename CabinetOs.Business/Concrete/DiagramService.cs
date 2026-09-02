@@ -6,6 +6,7 @@ using CabinetOs.DataAccess.UoW;
 using CabinetOs.Model.Dtos.Common;
 using CabinetOs.Model.Dtos.Diagram.Commands;
 using CabinetOs.Model.Dtos.Diagram.Queries;
+using CabinetOs.Model.Dtos.Diagram.Queries.Items;
 using CabinetOs.Model.Entities;
 using static CabinetOs.Model.Enums.EntityEnums;
 

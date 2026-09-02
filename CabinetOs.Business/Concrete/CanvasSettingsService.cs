@@ -6,7 +6,7 @@ using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
 using CabinetOs.Model.Dtos.CanvasSettings.Commands;
 using CabinetOs.Model.Dtos.CanvasSettings.Queries;
-using CabinetOs.Model.Dtos.Diagram.Queries;
+using CabinetOs.Model.Dtos.Diagram.Queries.Items;
 using CabinetOs.Model.Entities;
 using System.Linq.Expressions;
 

@@ -10,7 +10,7 @@ namespace CabinetOs.Model.Dtos.ComponentTemplate.Queries;
 /// (<c>CreatedBy</c>, <c>UpdateDateUtc</c>...) da tasiyor ve bunlar paletin isi
 /// degil. Buradaki alanlar tam olarak istemcinin cihazi canvas'ta cizmek ve
 /// pinlerini urettikten sonra kablo dogrulamasi yapmak icin ihtiyac duyduklaridir
-/// — <see cref="Diagram.Queries.DiagramPinDto"/> ile ayni kume.
+/// — <see cref="Diagram.Queries.Items.DiagramPinDto"/> ile ayni kume.
 /// </summary>
 public class ComponentTemplatePalettePinDto : IDto
 {
