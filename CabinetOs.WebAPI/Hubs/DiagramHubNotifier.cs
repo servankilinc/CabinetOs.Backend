@@ -1,4 +1,4 @@
-using CabinetOs.Business.Abstract;
+using CabinetOs.Business.Utils.DiagramNotifier;
 using CabinetOs.Model.Dtos.Realtime.Queries;
 using Microsoft.AspNetCore.SignalR;
 

@@ -1,11 +1,10 @@
 using System.Net.Http.Json;
 using System.Text;
-using CabinetOs.Business.Abstract;
 using CabinetOs.Core.Utils;
 using CabinetOs.Model.Dtos.Scada.Commands;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Business.Concrete;
+namespace CabinetOs.Business.Utils.ScadaCommandGateway;
 
 /// <summary>
 /// <see cref="IScadaCommandGateway"/>'in HTTP implementasyonu — kumandanin

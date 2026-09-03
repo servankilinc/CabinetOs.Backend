@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using CabinetOs.Business.Abstract;
+using CabinetOs.Business.Utils.MediaGateway;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Dtos.Camera.Queries;
 using CabinetOs.Model.Entities;
@@ -37,7 +37,7 @@ public partial class CameraService
     /// </summary>
     private const string TicketKeyPrefix = "stream_ticket_";
 
-    public async Task<Result<StreamTokenDto>> CreateStreamTicketAsync(
+    public async Task<Result<StreamTokenDto>> CreateStreamTokenAsync(
         Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default)
     {
         var camera = await _unitOfWork.Cameras.GetAsync(
@@ -98,7 +98,7 @@ public partial class CameraService
     /// ortasindan kopardi. Guvenligi saglayan sey tek kullanimlik olmasi degil,
     /// YOLA BAGLI ve KISA OMURLU olmasi.
     /// </summary>
-    public async Task<bool> ValidateStreamTicketAsync(string? path, string? ticket, CancellationToken cancellationToken = default)
+    public async Task<bool> ValidateStreamTokenAsync(string? path, string? ticket, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(ticket)) return false;
 

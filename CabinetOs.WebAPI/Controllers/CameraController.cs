@@ -82,7 +82,7 @@ public class CameraController : BaseController
     [HttpPost("{id:guid}/stream-ticket")]
     public async Task<IActionResult> CreateStreamTicket(Guid id, [FromQuery] StreamProfile profile, CancellationToken cancellationToken)
     {
-        var result = await _cameraService.CreateStreamTicketAsync(id, profile, cancellationToken);
+        var result = await _cameraService.CreateStreamTokenAsync(id, profile, cancellationToken);
         return ToAction(result);
     }
 

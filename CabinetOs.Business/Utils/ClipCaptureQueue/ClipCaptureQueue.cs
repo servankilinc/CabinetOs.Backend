@@ -1,7 +1,6 @@
 using System.Threading.Channels;
-using CabinetOs.Business.Abstract;
 
-namespace CabinetOs.Business.Concrete;
+namespace CabinetOs.Business.Utils.ClipCaptureQueue;
 
 /// <summary>
 /// <see cref="IClipCaptureQueue"/>'nun bellek ici implementasyonu.

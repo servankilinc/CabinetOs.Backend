@@ -1,4 +1,5 @@
 using CabinetOs.Business.Abstract;
+using CabinetOs.Business.Utils.ScadaService;
 
 namespace CabinetOs.WebAPI.BackgroundServices;
 
@@ -51,13 +52,13 @@ public class StaleDeviceSweeper : BackgroundService
         {
             try
             {
-                // Her turda YENI scope: IScadaService (ve altindaki DbContext)
+                // Her turda YENI scope: IChannelEventService (ve altindaki DbContext)
                 // scoped'dir. Tek bir uzun omurlu context, saatler icinde tum
                 // okunan entity'leri izlemeye devam eder ve bellegi sizdirirdi.
                 using var scope = _scopeFactory.CreateScope();
-                var scadaService = scope.ServiceProvider.GetRequiredService<IScadaService>();
+                var channelEventService = scope.ServiceProvider.GetRequiredService<IChannelEventService>();
 
-                int swept = await scadaService.SweepStaleDevicesAsync(_staleAfter, stoppingToken);
+                int swept = await channelEventService.SweepStaleDevicesAsync(_staleAfter, stoppingToken);
                 if (swept > 0)
                     _logger.LogInformation("{Count} cihaz Offline'a cekildi", swept);
             }

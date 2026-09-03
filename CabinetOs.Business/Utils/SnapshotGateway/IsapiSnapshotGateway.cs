@@ -4,13 +4,13 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using CabinetOs.Business.Abstract;
 using CabinetOs.Business.Settings;
+using CabinetOs.Business.Utils.CameraProtocolProfile;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Entities;
 using Microsoft.Extensions.Logging;
 
-namespace CabinetOs.Business.Concrete;
+namespace CabinetOs.Business.Utils.SnapshotGateway;
 
 /// <summary>
 /// <see cref="ISnapshotGateway"/>'in ISAPI implementasyonu.

@@ -1,3 +1,4 @@
+using CabinetOs.Business.Utils.SnapshotGateway;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Dtos.Camera.Commands;
 using CabinetOs.Model.Dtos.Camera.Queries;
@@ -55,13 +56,13 @@ public interface ICameraService
     /// <b>Donen govdede RTSP adresi, kullanici adi veya parola YOKTUR.</b>
     /// Bilet yola baglidir ve kisa omurludur.
     /// </summary>
-    Task<Result<StreamTokenDto>> CreateStreamTicketAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default);
+    Task<Result<StreamTokenDto>> CreateStreamTokenAsync(Guid cameraId, StreamProfile profile, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Medya gecidinin sordugu bileti dogrular. Yalnizca
     /// <c>MediaGatewayController</c> cagirir.
     /// </summary>
-    Task<bool> ValidateStreamTicketAsync(string? path, string? ticket, CancellationToken cancellationToken = default);
+    Task<bool> ValidateStreamTokenAsync(string? path, string? ticket, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Anlik goruntu — <b>satir YAZMAZ</b>. Kisa omurlu onbellek ve kamera

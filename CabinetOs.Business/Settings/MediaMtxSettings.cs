@@ -56,11 +56,4 @@ public class MediaMtxSettings
     /// Ikisi ayri makinede calisacaksa klip cekimi calismaz.
     /// </summary>
     public string RecordRoot { get; set; } = "";
-
-    /// <summary>
-    /// <c>policy_mediamtx_auth</c> icin 10 saniyelik butce. Varsayilan politika
-    /// (50/10 sn) yetmez: bir grid sayfasi yenilendiginde MediaMTX kutucuk basina
-    /// bir kanca cagrisi yapar ve hepsi tek IP (loopback) partition'ina duser.
-    /// </summary>
-    public int AuthRateLimitPermitsPer10Seconds { get; set; } = 300;
 }

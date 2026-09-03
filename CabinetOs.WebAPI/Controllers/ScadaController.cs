@@ -1,4 +1,5 @@
 using CabinetOs.Business.Abstract;
+using CabinetOs.Business.Utils.ScadaService;
 using CabinetOs.Model.Dtos.Scada.Commands;
 using CabinetOs.WebAPI.Controllers.Base;
 using Microsoft.AspNetCore.Authorization;
@@ -15,11 +16,11 @@ namespace CabinetOs.WebAPI.Controllers;
 /// </summary>
 public class ScadaController : BaseController
 {
-    private readonly IScadaService _scadaService;
+    private readonly IChannelEventService _channelEventService;
 
-    public ScadaController(ILogger<ScadaController> logger, IScadaService scadaService) : base(logger)
+    public ScadaController(ILogger<ScadaController> logger, IChannelEventService channelEventService) : base(logger)
     {
-        _scadaService = scadaService;
+        _channelEventService = channelEventService;
     }
 
     /// <summary>
@@ -39,7 +40,7 @@ public class ScadaController : BaseController
     [EnableRateLimiting("policy_scada_ingest")]
     public async Task<IActionResult> Ingest(ScadaIngestRequest request, CancellationToken cancellationToken)
     {
-        var result = await _scadaService.IngestAsync(request, cancellationToken);
+        var result = await _channelEventService.IngestAsync(request, cancellationToken);
         return ToAction(result);
     }
 }

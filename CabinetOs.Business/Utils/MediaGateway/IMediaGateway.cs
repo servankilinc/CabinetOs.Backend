@@ -2,7 +2,7 @@ using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Entities;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Business.Abstract;
+namespace CabinetOs.Business.Utils.MediaGateway;
 
 /// <summary>
 /// Medya gecidinin (MediaMTX) yonetim yuzu.

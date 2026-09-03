@@ -3,6 +3,12 @@ using Microsoft.Extensions.Configuration;
 using CabinetOs.Business.Abstract;
 using CabinetOs.Business.Concrete;
 using CabinetOs.Business.Utils.TokenService;
+using CabinetOs.Business.Utils.CameraProtocolProfile;
+using CabinetOs.Business.Utils.ClipCaptureQueue;
+using CabinetOs.Business.Utils.SnapshotGateway;
+using CabinetOs.Business.Utils.ScadaCommandGateway;
+using CabinetOs.Business.Utils.ScadaService;
+using CabinetOs.Business.Utils.Diagram;
 
 namespace CabinetOs.Business
 {
@@ -35,7 +41,6 @@ namespace CabinetOs.Business
             #endregion
 
             services.AddScoped<IDiagramService, DiagramService>();
-            services.AddScoped<IScadaService, ScadaService>();
             services.AddScoped<IChannelEventService, ChannelEventService>();
             services.AddScoped<ICameraService, CameraService>();
             services.AddScoped<IScadaCommandGateway, ScadaCommandGateway>();

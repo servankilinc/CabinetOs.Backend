@@ -1,9 +1,8 @@
-using CabinetOs.Business.Abstract;
 using CabinetOs.Model.Entities;
 using Microsoft.Extensions.Logging;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Business.Concrete;
+namespace CabinetOs.Business.Utils.CameraProtocolProfile;
 
 /// <summary>
 /// Hikvision URL sablonlari. Bugun hedeflenen donanim <c>DS-2CD1123G0-IUF</c>.

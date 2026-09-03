@@ -1,7 +1,10 @@
 using CabinetOs.Business;
-using CabinetOs.Business.Abstract;
-using CabinetOs.Business.Concrete;
 using CabinetOs.Business.Mappings;
+using CabinetOs.Business.Utils.CaptureFileStore;
+using CabinetOs.Business.Utils.DiagramNotifier;
+using CabinetOs.Business.Utils.MediaGateway;
+using CabinetOs.Business.Utils.ScadaCommandGateway;
+using CabinetOs.Business.Utils.SnapshotGateway;
 using CabinetOs.Core;
 using CabinetOs.Core.Utils;
 using CabinetOs.Core.Utils.Auth;
@@ -102,10 +105,6 @@ builder.Services.AddRateLimiter(options =>
     // Partition yine IP: ingest [AllowAnonymous] oldugu icin kullanici kimligi yok.
     // Govdedeki cabinetId'ye gore bolumlendirmek, sahte Guid'lerle sinirsiz butce
     // uretmek demek olurdu.
-    //
-    // Butce appsettings'ten okunur (`Scada:RateLimitPermitsPer10Seconds`) —
-    // sozlesme dokumaninda kabin sayisina gore olceklenebilir olarak ilan edilmis.
-    int scadaPermitLimit = builder.Configuration.GetValue<int?>("Scada:RateLimitPermitsPer10Seconds") ?? 600;
 
     options.AddPolicy("policy_scada_ingest", httpContext =>
     {
@@ -113,7 +112,7 @@ builder.Services.AddRateLimiter(options =>
 
         return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
         {
-            PermitLimit = scadaPermitLimit,
+            PermitLimit = 300,
             Window = TimeSpan.FromSeconds(10),
             SegmentsPerWindow = 4,
             // Kuyruk YOK: bekletilen bir telemetri paketi, reddedilenden kotudur —
@@ -126,14 +125,7 @@ builder.Services.AddRateLimiter(options =>
     // Medya gecidinin kimlik dogrulama kancasi da AYRI politika ister ve
     // politikanin VAR OLMASI sarttir — MediaGatewayController'daki
     // [EnableRateLimiting("policy_mediamtx_auth")] tanimsiz bir ada isaret
-    // ederse middleware exception atar ve uc her istekte 500 doner.
-    // (policy_scada_ingest ile bir kez tam olarak bu yasandi.)
-    //
-    // Neden ayri: varsayilan politika 50 istek/10 sn ve IP'ye gore partition
-    // ediyor. MediaMTX localhost'tan cagirir, yani TUM kutucuklarin kancasi tek
-    // partition'a duser: 12 kameralik bir grid'in bir kez yenilenmesi 12 istek
-    // demek ve birkac yenilemede varsayilan butce tukenirdi.
-    int mediamtxAuthPermitLimit = builder.Configuration.GetValue<int?>("Mediamtx:AuthRateLimitPermitsPer10Seconds") ?? 300;
+    // ederse middleware exception atar ve uc her istekte 500 doner. 
 
     options.AddPolicy("policy_mediamtx_auth", httpContext =>
     {
@@ -141,7 +133,7 @@ builder.Services.AddRateLimiter(options =>
 
         return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
         {
-            PermitLimit = mediamtxAuthPermitLimit,
+            PermitLimit = 300,
             Window = TimeSpan.FromSeconds(10),
             SegmentsPerWindow = 4,
             // Kuyruk YOK: bekletilen bir kimlik dogrulama, gecidin el sikisma

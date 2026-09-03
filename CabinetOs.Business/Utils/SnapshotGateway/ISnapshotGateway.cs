@@ -1,7 +1,7 @@
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Entities;
 
-namespace CabinetOs.Business.Abstract;
+namespace CabinetOs.Business.Utils.SnapshotGateway;
 
 /// <summary>Kameradan donen tek kare.</summary>
 /// <param name="Content">Ham baytlar — <b>veritabanina YAZILMAZ</b>.</param>

@@ -60,7 +60,7 @@ public class MediaGatewayController : BaseController
 
         // Bilet, istemcinin gonderdigi Basic basliginin PAROLA kismindan gelir:
         // istemci `base64("ticket:" + bilet)` gonderir, MediaMTX ikiye ayirir.
-        bool valid = await _cameraService.ValidateStreamTicketAsync(request.Path, request.Password, cancellationToken);
+        bool valid = await _cameraService.ValidateStreamTokenAsync(request.Path, request.Password, cancellationToken);
 
         return valid ? Ok() : Unauthorized();
     }

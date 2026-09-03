@@ -1,4 +1,4 @@
-namespace CabinetOs.Business.Abstract;
+namespace CabinetOs.Business.Utils.ClipCaptureQueue;
 
 /// <summary>
 /// Klip cekimlerinin arka plan kuyrugu.

@@ -1,7 +1,7 @@
 using CabinetOs.Model.Entities;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Business.Abstract;
+namespace CabinetOs.Business.Utils.CameraProtocolProfile;
 
 /// <summary>
 /// Bir kamera markasinin URL sablonlari.
@@ -12,7 +12,7 @@ namespace CabinetOs.Business.Abstract;
 /// yapilabilsin" yaziyor. Yollari servis govdesine gommek o kolonu anlamsiz
 /// kilar ve ikinci marka geldiginde her cagri yerine bir <c>if</c> ekletirdi.
 ///
-/// Bugun tek uygulama <see cref="Concrete.HikvisionProtocolProfile"/>.
+/// Bugun tek uygulama <see cref="CameraProtocolProfile.HikvisionProtocolProfile"/>.
 /// </summary>
 public interface ICameraProtocolProfile
 {

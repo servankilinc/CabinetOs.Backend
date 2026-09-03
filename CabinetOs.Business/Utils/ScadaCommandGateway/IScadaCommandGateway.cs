@@ -1,7 +1,7 @@
 using CabinetOs.Model.Dtos.Scada.Commands;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Business.Abstract;
+namespace CabinetOs.Business.Utils.ScadaCommandGateway;
 
 public interface IScadaCommandGateway
 {

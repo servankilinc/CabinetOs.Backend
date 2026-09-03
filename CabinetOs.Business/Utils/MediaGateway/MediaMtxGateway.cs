@@ -1,14 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using CabinetOs.Business.Abstract;
 using CabinetOs.Business.Settings;
+using CabinetOs.Business.Utils.CameraProtocolProfile;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Entities;
 using Microsoft.Extensions.Logging;
 using static CabinetOs.Model.Enums.EntityEnums;
 
-namespace CabinetOs.Business.Concrete;
+namespace CabinetOs.Business.Utils.MediaGateway;
 
 /// <summary>
 /// <see cref="IMediaGateway"/>'in MediaMTX Control API implementasyonu.

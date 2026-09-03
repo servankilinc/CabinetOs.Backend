@@ -13,6 +13,8 @@ using CabinetOs.Model.Dtos.DeviceCommand.Queries;
 using CabinetOs.Model.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
+using CabinetOs.Business.Utils.ScadaCommandGateway;
+using CabinetOs.Business.Utils.DiagramNotifier;
 
 namespace CabinetOs.Business.Concrete;
 

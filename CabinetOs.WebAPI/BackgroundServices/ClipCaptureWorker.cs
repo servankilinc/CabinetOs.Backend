@@ -1,4 +1,5 @@
 using CabinetOs.Business.Abstract;
+using CabinetOs.Business.Utils.ClipCaptureQueue;
 
 namespace CabinetOs.WebAPI.BackgroundServices;
 
