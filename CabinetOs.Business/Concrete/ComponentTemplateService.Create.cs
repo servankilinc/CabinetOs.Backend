@@ -37,19 +37,8 @@ public partial class ComponentTemplateService
                 description: "Sablon cihaz tipi gecersiz");
         }
 
-        var template = new ComponentTemplate
-        {
-            Name = request.Name,
-            DeviceTypeId = request.DeviceTypeId,
-            Width = request.Width,
-            Height = request.Height,
-            BackgroundColor = request.BackgroundColor,
-            BackgroundImageUrl = request.BackgroundImageUrl,
-            // Yeni sablon AKTIF dogar: pasif dogsaydi palette hic gorunmez ve
-            // kullanici onu neden goremedigini anlamazdi (B5'te ayni kusur
-            // Cabinet ve Device icin duzeltilmisti).
-            IsActive = true
-        };
+        var template = _mapper.Map<ComponentTemplate>(request);
+        template.IsActive = true;
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
         try
@@ -64,18 +53,9 @@ public partial class ComponentTemplateService
             {
                 foreach (var draft in request.Pins)
                 {
-                    _unitOfWork.ComponentTemplatePins.Add(new ComponentTemplatePin
-                    {
-                        ComponentTemplateId = template.Id,
-                        Name = draft.Name,
-                        RelativeX = draft.RelativeX,
-                        RelativeY = draft.RelativeY,
-                        Side = draft.Side,
-                        ChannelNumber = draft.ChannelNumber,
-                        Function = draft.Function,
-                        Direction = draft.Direction,
-                        VoltageLevel = draft.VoltageLevel
-                    });
+                    var pin = _mapper.Map<ComponentTemplatePin>(draft);
+                    pin.ComponentTemplateId = template.Id;
+                    _unitOfWork.ComponentTemplatePins.Add(pin);
                 }
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);

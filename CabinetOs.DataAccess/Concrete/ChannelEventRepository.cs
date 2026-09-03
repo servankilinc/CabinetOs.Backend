@@ -1,3 +1,5 @@
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
 using CabinetOs.Core.Utils.Pagination;
 using CabinetOs.DataAccess.Abstract;
@@ -15,6 +17,7 @@ namespace CabinetOs.DataAccess.Concrete
         }
 
         public async Task<PaginationResponse<ChannelEventDto>> GetPagedAsync(
+            IConfigurationProvider configurationProvider,
             Guid cabinetId,
             Guid? ioChannelId,
             DateTime? fromUtc,
@@ -43,23 +46,10 @@ namespace CabinetOs.DataAccess.Concrete
                 // degistirebilir ve bir satir iki kez ya da hic gorunmezdi.
                 .OrderByDescending(e => e.OccurredAtUtc)
                 .ThenByDescending(e => e.Id)
-                .Select(e => new ChannelEventDto
-                {
-                    Id = e.Id,
-                    IoChannelId = e.IoChannelId,
-                    CabinetId = e.CabinetId,
-                    // Turev alanlar: IoChannel'in soft-delete query filter'i
-                    // yuzunden silinmis kanalda null gelir — bkz. ChannelEventDto.
-                    ChannelName = e.IoChannel!.Name,
-                    ChannelNumber = e.IoChannel!.ChannelNumber,
-                    DeviceId = e.IoChannel!.DeviceId,
-                    DeviceName = e.IoChannel!.Device!.Name,
-                    DeviceExternalCode = e.IoChannel!.Device!.ExternalCode,
-                    Value = e.Value,
-                    PreviousValue = e.PreviousValue,
-                    OccurredAtUtc = e.OccurredAtUtc,
-                    ReceivedAtUtc = e.ReceivedAtUtc
-                })
+                // Alan listesi MappingProfiles -> ChannelEvent bolumunde. Turev dort
+                // alan IoChannel'in soft-delete query filter'i yuzunden silinmis
+                // kanalda null gelir — bkz. ChannelEventDto.
+                .ProjectTo<ChannelEventDto>(configurationProvider)
                 .ToPaginateAsync(pagination, cancellationToken);
         }
     }

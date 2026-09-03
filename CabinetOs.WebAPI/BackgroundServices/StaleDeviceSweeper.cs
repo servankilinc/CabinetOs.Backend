@@ -1,5 +1,4 @@
 using CabinetOs.Business.Abstract;
-using CabinetOs.Business.Utils.ScadaService;
 
 namespace CabinetOs.WebAPI.BackgroundServices;
 

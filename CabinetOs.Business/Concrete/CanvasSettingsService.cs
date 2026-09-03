@@ -46,41 +46,17 @@ public class CanvasSettingsService : ICanvasSettingsService
 
         if (existing == null)
         {
-            var created = new CanvasSettings
-            {
-                CabinetId = cabinetId,
-                GridSize = request.GridSize,
-                SnapToGrid = request.SnapToGrid,
-                BackgroundVariant = request.BackgroundVariant,
-                GridColor = request.GridColor,
-                BackgroundColor = request.BackgroundColor,
-                MinZoom = request.MinZoom,
-                MaxZoom = request.MaxZoom
-            };
+            var created = _mapper.Map<CanvasSettings>(request);
+            created.CabinetId = cabinetId;
             await _unitOfWork.CanvasSettings.AddAndSaveAsync(created, cancellationToken);
         }
         else
         {
-            existing.GridSize = request.GridSize;
-            existing.SnapToGrid = request.SnapToGrid;
-            existing.BackgroundVariant = request.BackgroundVariant;
-            existing.GridColor = request.GridColor;
-            existing.BackgroundColor = request.BackgroundColor;
-            existing.MinZoom = request.MinZoom;
-            existing.MaxZoom = request.MaxZoom;
+            _mapper.Map(request, existing);
             await _unitOfWork.CanvasSettings.UpdateAndSaveAsync(existing, cancellationToken);
         }
 
-        return Result<DiagramCanvasSettingsDto>.Success(new DiagramCanvasSettingsDto
-        {
-            GridSize = request.GridSize,
-            SnapToGrid = request.SnapToGrid,
-            BackgroundVariant = request.BackgroundVariant,
-            GridColor = request.GridColor,
-            BackgroundColor = request.BackgroundColor,
-            MinZoom = request.MinZoom,
-            MaxZoom = request.MaxZoom
-        });
+        return Result<DiagramCanvasSettingsDto>.Success(_mapper.Map<DiagramCanvasSettingsDto>(request));
     }
 
     public async Task<Result<CanvasSettings>> GetAsync(Expression<Func<CanvasSettings, bool>> where, CancellationToken cancellationToken = default)

@@ -1,3 +1,4 @@
+using AutoMapper;
 using CabinetOs.Business.Abstract;
 using CabinetOs.Business.Settings;
 using CabinetOs.Business.Utils.CaptureFileStore;
@@ -43,6 +44,7 @@ public partial class CameraService : ICameraService
     private readonly CameraCaptureSettings _captureSettings;
     private readonly IHttpContextManager _httpContextManager;
     private readonly ILogger<CameraService> _logger;
+    private readonly IMapper _mapper;
 
     public CameraService(
         IUnitOfWork unitOfWork,
@@ -55,7 +57,8 @@ public partial class CameraService : ICameraService
         MediaMtxSettings mediaMtxSettings,
         CameraCaptureSettings captureSettings,
         IHttpContextManager httpContextManager,
-        ILogger<CameraService> logger)
+        ILogger<CameraService> logger,
+        IMapper mapper)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
@@ -68,6 +71,7 @@ public partial class CameraService : ICameraService
         _captureSettings = captureSettings;
         _httpContextManager = httpContextManager;
         _logger = logger;
+        _mapper = mapper;
     }
 
     public async Task<Result<ICollection<CameraDto>>> GetListAsync(Guid cabinetId, bool includePassive = false, CancellationToken cancellationToken = default)

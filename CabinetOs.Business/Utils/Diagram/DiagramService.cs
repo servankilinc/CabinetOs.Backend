@@ -1,13 +1,11 @@
+using AutoMapper;
 using CabinetOs.Business.Utils;
 using CabinetOs.Business.Utils.Diagram;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
-using CabinetOs.Model.Dtos.Common;
-using CabinetOs.Model.Dtos.Diagram.Commands;
 using CabinetOs.Model.Dtos.Diagram.Queries;
 using CabinetOs.Model.Dtos.Diagram.Queries.Items;
-using CabinetOs.Model.Entities;
 using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Business.Concrete;
@@ -16,88 +14,30 @@ public partial class DiagramService : IDiagramService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
+    private readonly IMapper _mapper;
 
-    public DiagramService(IUnitOfWork unitOfWork, IValidationService validationService)
+    public DiagramService(IUnitOfWork unitOfWork, IValidationService validationService, IMapper mapper)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
+        _mapper = mapper;
     }
 
     public async Task<Result<DiagramDto>> GetAsync(Guid cabinetId, CancellationToken cancellationToken = default)
     {
-        var cabinet = await _unitOfWork.Cabinets.GetAsync(
-            select: c => new DiagramCabinetDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                CompanyId = c.CompanyId,
-                DeviceStatusId = c.DeviceStatusId,
-                DeviceStatusName = c.DeviceStatus!.Name,
-                LastSeen = c.LastSeen,
-                IsActive = c.IsActive,
-                ScadaIsEnabled = c.ScadaIsEnabled,
-                ScadaLastIngestAt = c.ScadaLastIngestAt
-            },
+        var cabinet = await _unitOfWork.Cabinets.GetAsync<DiagramCabinetDto>(
+            configurationProvider: _mapper.ConfigurationProvider,
             where: c => c.Id == cabinetId && c.IsActive,
             cancellationToken: cancellationToken);
 
         if (cabinet == null)
             return Result<DiagramDto>.NotFound(description: "Kabin bulunamadi veya pasif durumda");
 
-        var devices = await _unitOfWork.Devices.GetAllAsync(
-            select: d => new DiagramDeviceDto
-            {
-                Id = d.Id,
-                Name = d.Name,
-                CoordinateX = d.CoordinateX,
-                CoordinateY = d.CoordinateY,
-                Rotation = d.Rotation,
-                ZIndex = d.ZIndex,
-                IsLocked = d.IsLocked,
-                IsVisible = d.IsVisible,
-                IsActive = d.IsActive,
-                ComponentTemplateId = d.ComponentTemplateId,
-                ExternalCode = d.ExternalCode,
-                DeviceStatusId = d.DeviceStatusId,
-                DeviceStatusName = d.DeviceStatus!.Name,
-                LastSeen = d.LastSeen,
-                // Sablon ozeti cihazla birlikte tasinir: sablon pasife alinsa bile
-                // kabin dogru boyut ve renkle render olmali.
-                Template = new DiagramComponentTemplateDto
-                {
-                    Id = d.ComponentTemplate!.Id,
-                    Name = d.ComponentTemplate.Name,
-                    DeviceTypeId = d.ComponentTemplate.DeviceTypeId,
-                    Width = d.ComponentTemplate.Width,
-                    Height = d.ComponentTemplate.Height,
-                    BackgroundColor = d.ComponentTemplate.BackgroundColor,
-                    BackgroundImageUrl = d.ComponentTemplate.BackgroundImageUrl
-                },
-                // Pin ve IoChannel ISoftDeletableEntity: silinmis satirlari global
-                // query filter zaten eliyor, burada tekrar filtrelemeye gerek yok.
-                Pins = d.Pins!.Select(p => new DiagramPinDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    RelativeX = p.RelativeX,
-                    RelativeY = p.RelativeY,
-                    Side = p.Side,
-                    Function = p.Function,
-                    Direction = p.Direction,
-                    VoltageLevel = p.VoltageLevel,
-                    ChannelNumber = p.ChannelNumber,
-                    ComponentTemplatePinId = p.ComponentTemplatePinId,
-                    IoChannelId = p.IoChannelId
-                }).ToList(),
-                IoChannels = d.IoChannels!.Select(c => new DiagramIoChannelDto
-                {
-                    Id = c.Id,
-                    ChannelNumber = c.ChannelNumber,
-                    Direction = c.Direction,
-                    IsEnabled = c.IsEnabled,
-                    Name = c.Name
-                }).ToList()
-            },
+        // Sablon ozeti cihazla birlikte tasinir (sablon pasife alinsa bile kabin
+        // dogru boyut ve renkle render olmali); Pin ve IoChannel ISoftDeletableEntity
+        // oldugu icin silinmis satirlari global query filter zaten eliyor.
+        var devices = await _unitOfWork.Devices.GetAllAsync<DiagramDeviceDto>(
+            configurationProvider: _mapper.ConfigurationProvider,
             where: d => d.CabinetId == cabinetId && d.IsActive,
             orderBy: q => q.OrderBy(d => d.ZIndex).ThenBy(d => d.Name),
             cancellationToken: cancellationToken);
@@ -151,42 +91,14 @@ public partial class DiagramService : IDiagramService
             })
             .ToList();
 
-        var annotations = await _unitOfWork.DiagramAnnotations.GetAllAsync(
-            select: a => new DiagramAnnotationItemDto
-            {
-                Id = a.Id,
-                Name = a.Name,
-                CoordinateX = a.CoordinateX,
-                CoordinateY = a.CoordinateY,
-                Width = a.Width,
-                Height = a.Height,
-                Rotation = a.Rotation,
-                ZIndex = a.ZIndex,
-                IsLocked = a.IsLocked,
-                IsVisible = a.IsVisible,
-                Text = a.Text,
-                Shape = a.Shape,
-                BackgroundColor = a.BackgroundColor,
-                FontColor = a.FontColor,
-                FontSize = a.FontSize,
-                IsBold = a.IsBold,
-                BorderColor = a.BorderColor
-            },
+        var annotations = await _unitOfWork.DiagramAnnotations.GetAllAsync<DiagramAnnotationItemDto>(
+            configurationProvider: _mapper.ConfigurationProvider,
             where: a => a.CabinetId == cabinetId,
             orderBy: q => q.OrderBy(a => a.ZIndex),
             cancellationToken: cancellationToken);
 
-        var canvasSettings = await _unitOfWork.CanvasSettings.GetAsync(
-            select: s => new DiagramCanvasSettingsDto
-            {
-                GridSize = s.GridSize,
-                SnapToGrid = s.SnapToGrid,
-                BackgroundVariant = s.BackgroundVariant,
-                GridColor = s.GridColor,
-                BackgroundColor = s.BackgroundColor,
-                MinZoom = s.MinZoom,
-                MaxZoom = s.MaxZoom
-            },
+        var canvasSettings = await _unitOfWork.CanvasSettings.GetAsync<DiagramCanvasSettingsDto>(
+            configurationProvider: _mapper.ConfigurationProvider,
             where: s => s.CabinetId == cabinetId,
             cancellationToken: cancellationToken);
 

@@ -1,5 +1,4 @@
 using CabinetOs.Business.Abstract;
-using CabinetOs.Business.Utils.ScadaService;
 using CabinetOs.Model.Dtos.Scada.Commands;
 using CabinetOs.WebAPI.Controllers.Base;
 using Microsoft.AspNetCore.Authorization;

@@ -752,12 +752,12 @@ public partial class DiagramService
         {
             if (context.Annotations.Live.TryGetValue(draft.Id, out var annotation))
             {
-                WriteAnnotation(annotation, draft);
+                _mapper.Map(draft, annotation);
                 continue;
             }
 
             annotation = new DiagramAnnotation { Id = draft.Id, CabinetId = cabinetId };
-            WriteAnnotation(annotation, draft);
+            _mapper.Map(draft, annotation);  // Id ve CabinetId disinda tum alanlar modelden kopyalanir
             _unitOfWork.DiagramAnnotations.Add(annotation);
         }
     }
@@ -793,26 +793,6 @@ public partial class DiagramService
         connection.Routing = draft.Routing;
         connection.WaypointsJson = DiagramWaypoints.Serialize(draft.Waypoints);
         connection.ZIndex = draft.ZIndex;
-    }
-
-    private static void WriteAnnotation(DiagramAnnotation annotation, DiagramAnnotationDraft draft)
-    {
-        annotation.Name = draft.Name;
-        annotation.CoordinateX = draft.CoordinateX;
-        annotation.CoordinateY = draft.CoordinateY;
-        annotation.Width = draft.Width;
-        annotation.Height = draft.Height;
-        annotation.Rotation = draft.Rotation;
-        annotation.ZIndex = draft.ZIndex;
-        annotation.IsLocked = draft.IsLocked;
-        annotation.IsVisible = draft.IsVisible;
-        annotation.Text = draft.Text;
-        annotation.Shape = draft.Shape;
-        annotation.BackgroundColor = draft.BackgroundColor;
-        annotation.FontColor = draft.FontColor;
-        annotation.FontSize = draft.FontSize;
-        annotation.IsBold = draft.IsBold;
-        annotation.BorderColor = draft.BorderColor;
     }
 
     /// <summary>

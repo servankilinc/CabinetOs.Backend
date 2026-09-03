@@ -1,3 +1,4 @@
+using AutoMapper;
 using CabinetOs.Core.Utils.Pagination;
 using CabinetOs.DataAccess.Repository;
 using CabinetOs.Model.Dtos.ChannelEvent.Queries;
@@ -20,6 +21,7 @@ namespace CabinetOs.DataAccess.Abstract
         /// <c>IX_ChannelEvent_IoChannelId_OccurredAtUtc</c> indekslerine oturur.
         /// </remarks>
         Task<PaginationResponse<ChannelEventDto>> GetPagedAsync(
+            IConfigurationProvider configurationProvider,
             Guid cabinetId,
             Guid? ioChannelId,
             DateTime? fromUtc,

@@ -1,6 +1,6 @@
+using AutoMapper;
 using CabinetOs.Business.Abstract;
 using CabinetOs.Business.Utils.DiagramNotifier;
-using CabinetOs.Business.Utils.ScadaService;
 using CabinetOs.Core.Utils.Pagination;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils.Validation;
@@ -49,16 +49,19 @@ public class ChannelEventService : IChannelEventService
     private readonly IValidationService _validationService;
     private readonly IDiagramNotifier _notifier;
     private readonly ILogger<ChannelEventService> _logger;
+    private readonly IMapper _mapper;
 
     public ChannelEventService(IUnitOfWork unitOfWork,
         IValidationService validationService,
         IDiagramNotifier notifier,
-        ILogger<ChannelEventService> logger)
+        ILogger<ChannelEventService> logger,
+        IMapper mapper)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
         _notifier = notifier;
         _logger = logger;
+        _mapper = mapper;
     }
 
     public async Task<Result<PaginationResponse<ChannelEventDto>>> GetPagedAsync(ChannelEventQueryRequest request, CancellationToken cancellationToken = default)
@@ -78,6 +81,7 @@ public class ChannelEventService : IChannelEventService
             return Result<PaginationResponse<ChannelEventDto>>.NotFound(description: "Kabin bulunamadi");
 
         var page = await _unitOfWork.ChannelEvents.GetPagedAsync(
+            _mapper.ConfigurationProvider,
             request.CabinetId,
             request.IoChannelId,
             request.FromUtc,

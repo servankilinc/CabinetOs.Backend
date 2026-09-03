@@ -42,7 +42,7 @@ public partial class CameraService
 
         var captures = await _unitOfWork.CameraCaptures.GetRecentForCameraAsync(cameraId, safeTake, cancellationToken);
 
-        return Result<ICollection<CameraCaptureDto>>.Success(captures.Select(ToDto).ToList());
+        return Result<ICollection<CameraCaptureDto>>.Success(_mapper.Map<List<CameraCaptureDto>>(captures));
     }
 
     /// <summary>
@@ -311,7 +311,7 @@ public partial class CameraService
         }
 
         await _unitOfWork.CameraCaptures.AddAndSaveAsync(capture, cancellationToken);
-        return Result<CameraCaptureDto>.Success(ToDto(capture));
+        return Result<CameraCaptureDto>.Success(_mapper.Map<CameraCaptureDto>(capture));
     }
 
     /// <summary>
@@ -348,7 +348,7 @@ public partial class CameraService
         // (bkz. IClipCaptureQueue) — elle tetiklenen, nadir bir istek.
         _clipCaptureQueue.Enqueue(capture.Id);
 
-        return Result<CameraCaptureDto>.Success(ToDto(capture));
+        return Result<CameraCaptureDto>.Success(_mapper.Map<CameraCaptureDto>(capture));
     }
 
 
@@ -405,24 +405,4 @@ public partial class CameraService
         if (!identifier.IsSuccess) return null;
         return Guid.TryParse(identifier.Data, out var userId) ? userId : null;
     }
-
-    /// <summary>
-    /// Elle esleme — <c>CameraDto.Projection</c> ile ayni gerekce: okuma yoluna
-    /// hangi alanlarin ciktiginin TEK ve acik listesi. Burada ifade agaci
-    /// gerekmiyor cunku kaynak zaten bellekteki varliklar.
-    /// </summary>
-    private static CameraCaptureDto ToDto(CameraCapture capture) => new()
-    {
-        Id = capture.Id,
-        CameraId = capture.CameraId,
-        Type = capture.Type,
-        Status = capture.Status,
-        CapturedAtUtc = capture.CapturedAtUtc,
-        DurationSec = capture.DurationSec,
-        RelativePath = capture.RelativePath,
-        SizeBytes = capture.SizeBytes,
-        FailureReason = capture.FailureReason,
-        ExpiresAt = capture.ExpiresAt,
-        RequestedByUserId = capture.RequestedByUserId
-    };
 }

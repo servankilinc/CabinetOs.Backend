@@ -2,9 +2,13 @@ using AutoMapper;
 using CabinetOs.Model.Auth.SignUp;
 using CabinetOs.Model.Dtos.Cabinet.Commands;
 using CabinetOs.Model.Dtos.Cabinet.Queries;
+using CabinetOs.Model.Dtos.Camera.Queries;
+using CabinetOs.Model.Dtos.CanvasSettings.Commands;
 using CabinetOs.Model.Dtos.CanvasSettings.Queries;
+using CabinetOs.Model.Dtos.ChannelEvent.Queries;
 using CabinetOs.Model.Dtos.Company.Commands;
 using CabinetOs.Model.Dtos.Company.Queries;
+using CabinetOs.Model.Dtos.ComponentTemplate.Commands;
 using CabinetOs.Model.Dtos.ComponentTemplate.Queries;
 using CabinetOs.Model.Dtos.ComponentTemplatePin.Queries;
 using CabinetOs.Model.Dtos.Connection.Queries;
@@ -13,6 +17,8 @@ using CabinetOs.Model.Dtos.DeviceCommand.Commands;
 using CabinetOs.Model.Dtos.DeviceCommand.Queries;
 using CabinetOs.Model.Dtos.DeviceStatus.Queries;
 using CabinetOs.Model.Dtos.DeviceType.Queries;
+using CabinetOs.Model.Dtos.Diagram.Commands.Items;
+using CabinetOs.Model.Dtos.Diagram.Queries.Items;
 using CabinetOs.Model.Dtos.DiagramAnnotation.Queries;
 using CabinetOs.Model.Dtos.IoChannel.Queries;
 using CabinetOs.Model.Dtos.Permission.Queries;
@@ -32,9 +38,6 @@ public class MappingProfiles : Profile
     public MappingProfiles()
     {
         #region Company
-        CreateMap<Company, Company>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<Company, CompanyDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -43,14 +46,13 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
 
         CreateMap<CompanyCreateDto, Company>()
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-            .ReverseMap();
+            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description));
 
+        // ReverseMap KORUNUR: GetUpdateModelAsync -> ProjectTo<CompanyUpdateDto> buna bagli.
         CreateMap<CompanyUpdateDto, Company>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -59,17 +61,13 @@ public class MappingProfiles : Profile
         #endregion
 
         #region Cabinet
-        CreateMap<Cabinet, Cabinet>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<Cabinet, CabinetBaseDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.CompanyId, opt => opt.MapFrom(src => src.CompanyId))
             .ForMember(dest => dest.Latitude, opt => opt.MapFrom(src => src.Latitude))
             .ForMember(dest => dest.Longitude, opt => opt.MapFrom(src => src.Longitude))
-            .ForMember(dest => dest.LocationDescription, opt => opt.MapFrom(src => src.LocationDescription))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.LocationDescription, opt => opt.MapFrom(src => src.LocationDescription));
 
         CreateMap<Cabinet, CabinetDetailDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -87,8 +85,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
 
         CreateMap<CabinetCreateDto, Cabinet>()
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -100,8 +97,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.NetworkIp, opt => opt.MapFrom(src => src.NetworkIp))
             .ForMember(dest => dest.ScadaBaseUrl, opt => opt.MapFrom(src => src.ScadaBaseUrl))
             .ForMember(dest => dest.ScadaCommandTimeoutMs, opt => opt.MapFrom(src => src.ScadaCommandTimeoutMs))
-            .ForMember(dest => dest.ScadaIsEnabled, opt => opt.MapFrom(src => src.ScadaIsEnabled))
-            .ReverseMap();
+            .ForMember(dest => dest.ScadaIsEnabled, opt => opt.MapFrom(src => src.ScadaIsEnabled));
 
         CreateMap<CabinetUpdateDto, Cabinet>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -119,22 +115,17 @@ public class MappingProfiles : Profile
         #endregion
 
         #region User
-        CreateMap<User, User>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<SignUpRequest, User>()
             .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.Email))
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.UserName))
             .ForMember(dest => dest.FullName, opt => opt.MapFrom(src => src.FullName))
             .ForMember(dest => dest.CompanyId, opt => opt.MapFrom(src => src.CompanyId))
-            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.PhoneNumber))
-            .ReverseMap();
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.PhoneNumber));
 
         CreateMap<User, UserBaseDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.FullName, opt => opt.MapFrom(src => src.FullName))
-            .ForMember(dest => dest.CompanyId, opt => opt.MapFrom(src => src.CompanyId))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.CompanyId, opt => opt.MapFrom(src => src.CompanyId));
 
         CreateMap<User, UserDetailDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -147,16 +138,14 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
 
         CreateMap<UserCreateDto, User>()
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.UserName))
             .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.Email))
             .ForMember(dest => dest.CompanyId, opt => opt.MapFrom(src => src.CompanyId))
             .ForMember(dest => dest.FullName, opt => opt.MapFrom(src => src.FullName))
-            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.PhoneNumber))
-            .ReverseMap();
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.PhoneNumber));
 
         CreateMap<UserUpdateDto, User>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -167,9 +156,6 @@ public class MappingProfiles : Profile
         #endregion
 
         #region Role
-        CreateMap<Role, Role>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<Role, RoleDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -177,12 +163,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
 
         CreateMap<RoleCreateDto, Role>()
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
-            .ReverseMap();
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name));
 
         CreateMap<RoleUpdateDto, Role>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -192,27 +176,19 @@ public class MappingProfiles : Profile
         #endregion
 
         #region RolePermission
-        CreateMap<RolePermission, RolePermission>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<RolePermission, RolePermissionDto>()
             .ForMember(dest => dest.RoleId, opt => opt.MapFrom(src => src.RoleId))
             .ForMember(dest => dest.PermissionId, opt => opt.MapFrom(src => src.PermissionId))
             .ForMember(dest => dest.PermissionCode, opt => opt.MapFrom(src => src.Permission != default ? src.Permission.Code : default))
             .ForMember(dest => dest.PermissionDisplayName, opt => opt.MapFrom(src => src.Permission != default ? src.Permission.DisplayName : default))
-            .ForMember(dest => dest.PermissionCategory, opt => opt.MapFrom(src => src.Permission != default ? src.Permission.Category : default))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.PermissionCategory, opt => opt.MapFrom(src => src.Permission != default ? src.Permission.Category : default));
 
         CreateMap<RolePermissionCreateDto, RolePermission>()
             .ForMember(dest => dest.RoleId, opt => opt.MapFrom(src => src.RoleId))
-            .ForMember(dest => dest.PermissionId, opt => opt.MapFrom(src => src.PermissionId))
-            .ReverseMap();
+            .ForMember(dest => dest.PermissionId, opt => opt.MapFrom(src => src.PermissionId));
         #endregion
 
         #region Permission
-        CreateMap<Permission, Permission>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<Permission, PermissionDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Code, opt => opt.MapFrom(src => src.Code))
@@ -221,14 +197,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
-            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc));
         #endregion
 
         #region DeviceCommand
-        CreateMap<DeviceCommand, DeviceCommand>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<DeviceCommand, DeviceCommandDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.DeviceId, opt => opt.MapFrom(src => src.DeviceId))
@@ -248,8 +220,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
             .ForMember(dest => dest.DeletedBy, opt => opt.MapFrom(src => src.DeletedBy))
             .ForMember(dest => dest.IsDeleted, opt => opt.MapFrom(src => src.IsDeleted))
-            .ForMember(dest => dest.DeletedDateUtc, opt => opt.MapFrom(src => src.DeletedDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.DeletedDateUtc, opt => opt.MapFrom(src => src.DeletedDateUtc));
 
         CreateMap<DeviceCommandCreateDto, DeviceCommand>()
             .ForMember(dest => dest.DeviceId, opt => opt.MapFrom(src => src.DeviceId))
@@ -260,8 +231,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.RequestedByUserId, opt => opt.MapFrom(src => src.RequestedByUserId))
             .ForMember(dest => dest.SentAt, opt => opt.MapFrom(src => src.SentAt))
             .ForMember(dest => dest.RespondedAt, opt => opt.MapFrom(src => src.RespondedAt))
-            .ForMember(dest => dest.ResultMessage, opt => opt.MapFrom(src => src.ResultMessage))
-            .ReverseMap();
+            .ForMember(dest => dest.ResultMessage, opt => opt.MapFrom(src => src.ResultMessage));
 
         CreateMap<DeviceCommandUpdateDto, DeviceCommand>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -274,9 +244,6 @@ public class MappingProfiles : Profile
         #endregion
 
         #region Connection
-        CreateMap<Connection, Connection>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<Connection, ConnectionDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.SourcePinId, opt => opt.MapFrom(src => src.SourcePinId))
@@ -294,14 +261,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
             .ForMember(dest => dest.DeletedBy, opt => opt.MapFrom(src => src.DeletedBy))
             .ForMember(dest => dest.IsDeleted, opt => opt.MapFrom(src => src.IsDeleted))
-            .ForMember(dest => dest.DeletedDateUtc, opt => opt.MapFrom(src => src.DeletedDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.DeletedDateUtc, opt => opt.MapFrom(src => src.DeletedDateUtc));
         #endregion
 
         #region IoChannel
-        CreateMap<IoChannel, IoChannel>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<IoChannel, IoChannelDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.DeviceId, opt => opt.MapFrom(src => src.DeviceId))
@@ -317,14 +280,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
             .ForMember(dest => dest.DeletedBy, opt => opt.MapFrom(src => src.DeletedBy))
             .ForMember(dest => dest.IsDeleted, opt => opt.MapFrom(src => src.IsDeleted))
-            .ForMember(dest => dest.DeletedDateUtc, opt => opt.MapFrom(src => src.DeletedDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.DeletedDateUtc, opt => opt.MapFrom(src => src.DeletedDateUtc));
         #endregion
 
         #region Pin
-        CreateMap<Pin, Pin>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<Pin, PinDetailDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -342,8 +301,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
             .ForMember(dest => dest.DeletedBy, opt => opt.MapFrom(src => src.DeletedBy))
             .ForMember(dest => dest.IsDeleted, opt => opt.MapFrom(src => src.IsDeleted))
-            .ForMember(dest => dest.DeletedDateUtc, opt => opt.MapFrom(src => src.DeletedDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.DeletedDateUtc, opt => opt.MapFrom(src => src.DeletedDateUtc));
 
         CreateMap<Pin, PinDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -352,14 +310,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.RelativeY, opt => opt.MapFrom(src => src.RelativeY))
             .ForMember(dest => dest.Function, opt => opt.MapFrom(src => src.Function))
             .ForMember(dest => dest.VoltageLevel, opt => opt.MapFrom(src => src.VoltageLevel))
-            .ForMember(dest => dest.DeviceId, opt => opt.MapFrom(src => src.DeviceId))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.DeviceId, opt => opt.MapFrom(src => src.DeviceId));
         #endregion
 
         #region CanvasSettings
-        CreateMap<CanvasSettings, CanvasSettings>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<CanvasSettings, CanvasSettingsDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.GridSize, opt => opt.MapFrom(src => src.GridSize))
@@ -372,22 +326,17 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
-            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc));
         #endregion
 
         #region ComponentTemplate
-        CreateMap<ComponentTemplate, ComponentTemplate>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<ComponentTemplate, ComponentTemplateBaseDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.DeviceTypeId, opt => opt.MapFrom(src => src.DeviceTypeId))
             .ForMember(dest => dest.IsSystemTemplate, opt => opt.MapFrom(src => src.IsSystemTemplate))
             .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
-            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl));
 
         CreateMap<ComponentTemplate, ComponentTemplateDetailDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -403,14 +352,18 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
+
+        CreateMap<ComponentTemplateCreateRequest, ComponentTemplate>()
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.DeviceTypeId, opt => opt.MapFrom(src => src.DeviceTypeId))
+            .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
+            .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
+            .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
+            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl));
         #endregion
 
         #region ComponentTemplatePin
-        CreateMap<ComponentTemplatePin, ComponentTemplatePin>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<ComponentTemplatePin, ComponentTemplatePinDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.ComponentTemplateId, opt => opt.MapFrom(src => src.ComponentTemplateId))
@@ -424,14 +377,20 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
-            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc));
+
+        CreateMap<TemplatePinDraft, ComponentTemplatePin>()
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.RelativeX, opt => opt.MapFrom(src => src.RelativeX))
+            .ForMember(dest => dest.RelativeY, opt => opt.MapFrom(src => src.RelativeY))
+            .ForMember(dest => dest.Side, opt => opt.MapFrom(src => src.Side))
+            .ForMember(dest => dest.ChannelNumber, opt => opt.MapFrom(src => src.ChannelNumber))
+            .ForMember(dest => dest.Function, opt => opt.MapFrom(src => src.Function))
+            .ForMember(dest => dest.Direction, opt => opt.MapFrom(src => src.Direction))
+            .ForMember(dest => dest.VoltageLevel, opt => opt.MapFrom(src => src.VoltageLevel));
         #endregion
 
         #region Device
-        CreateMap<Device, Device>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<Device, DeviceDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -439,8 +398,7 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.CabinetId))
             .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
             .ForMember(dest => dest.ExternalCode, opt => opt.MapFrom(src => src.ExternalCode))
-            .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen));
 
         CreateMap<Device, DeviceDetailDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
@@ -464,14 +422,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
             .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive));
         #endregion
 
         #region DiagramAnnotation
-        CreateMap<DiagramAnnotation, DiagramAnnotation>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<DiagramAnnotation, DiagramAnnotationDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -495,14 +449,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
-            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc));
         #endregion
 
         #region DeviceStatus
-        CreateMap<DeviceStatus, DeviceStatus>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<DeviceStatus, DeviceStatusDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -512,14 +462,10 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
-            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc));
         #endregion
 
         #region DeviceType
-        CreateMap<DeviceType, DeviceType>()
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
-
         CreateMap<DeviceType, DeviceTypeDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
@@ -527,8 +473,169 @@ public class MappingProfiles : Profile
             .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
             .ForMember(dest => dest.UpdatedBy, opt => opt.MapFrom(src => src.UpdatedBy))
             .ForMember(dest => dest.CreateDateUtc, opt => opt.MapFrom(src => src.CreateDateUtc))
-            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc))
-            .ForAllMembers(opt => opt.Condition((src, dest, srcMember, destMember) => !Equals(srcMember, destMember)));
+            .ForMember(dest => dest.UpdateDateUtc, opt => opt.MapFrom(src => src.UpdateDateUtc));
+        #endregion
+
+        #region Diagram aggregate (okuma — GET /api/Diagram/cabinet/{id})
+        CreateMap<Cabinet, DiagramCabinetDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.CompanyId, opt => opt.MapFrom(src => src.CompanyId))
+            .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
+            .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != default ? src.DeviceStatus.Name : default))
+            .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
+            .ForMember(dest => dest.ScadaIsEnabled, opt => opt.MapFrom(src => src.ScadaIsEnabled))
+            .ForMember(dest => dest.ScadaLastIngestAt, opt => opt.MapFrom(src => src.ScadaLastIngestAt));
+
+        CreateMap<Device, DiagramDeviceDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.CoordinateX, opt => opt.MapFrom(src => src.CoordinateX))
+            .ForMember(dest => dest.CoordinateY, opt => opt.MapFrom(src => src.CoordinateY))
+            .ForMember(dest => dest.Rotation, opt => opt.MapFrom(src => src.Rotation))
+            .ForMember(dest => dest.ZIndex, opt => opt.MapFrom(src => src.ZIndex))
+            .ForMember(dest => dest.IsLocked, opt => opt.MapFrom(src => src.IsLocked))
+            .ForMember(dest => dest.IsVisible, opt => opt.MapFrom(src => src.IsVisible))
+            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.IsActive))
+            .ForMember(dest => dest.ComponentTemplateId, opt => opt.MapFrom(src => src.ComponentTemplateId))
+            .ForMember(dest => dest.ExternalCode, opt => opt.MapFrom(src => src.ExternalCode))
+            .ForMember(dest => dest.DeviceStatusId, opt => opt.MapFrom(src => src.DeviceStatusId))
+            .ForMember(dest => dest.DeviceStatusName, opt => opt.MapFrom(src => src.DeviceStatus != default ? src.DeviceStatus.Name : default))
+            .ForMember(dest => dest.LastSeen, opt => opt.MapFrom(src => src.LastSeen))
+            // Sablon ozeti cihazla birlikte tasinir: sablon pasife alinsa bile
+            // kabin dogru boyut ve renkle render olmali.
+            .ForMember(dest => dest.Template, opt => opt.MapFrom(src => src.ComponentTemplate))
+            .ForMember(dest => dest.Pins, opt => opt.MapFrom(src => src.Pins))
+            .ForMember(dest => dest.IoChannels, opt => opt.MapFrom(src => src.IoChannels));
+
+        CreateMap<ComponentTemplate, DiagramComponentTemplateDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.DeviceTypeId, opt => opt.MapFrom(src => src.DeviceTypeId))
+            .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
+            .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
+            .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
+            .ForMember(dest => dest.BackgroundImageUrl, opt => opt.MapFrom(src => src.BackgroundImageUrl));
+
+        CreateMap<Pin, DiagramPinDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.RelativeX, opt => opt.MapFrom(src => src.RelativeX))
+            .ForMember(dest => dest.RelativeY, opt => opt.MapFrom(src => src.RelativeY))
+            .ForMember(dest => dest.Side, opt => opt.MapFrom(src => src.Side))
+            .ForMember(dest => dest.Function, opt => opt.MapFrom(src => src.Function))
+            .ForMember(dest => dest.Direction, opt => opt.MapFrom(src => src.Direction))
+            .ForMember(dest => dest.VoltageLevel, opt => opt.MapFrom(src => src.VoltageLevel))
+            .ForMember(dest => dest.ChannelNumber, opt => opt.MapFrom(src => src.ChannelNumber))
+            .ForMember(dest => dest.ComponentTemplatePinId, opt => opt.MapFrom(src => src.ComponentTemplatePinId))
+            .ForMember(dest => dest.IoChannelId, opt => opt.MapFrom(src => src.IoChannelId));
+
+        CreateMap<IoChannel, DiagramIoChannelDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.ChannelNumber, opt => opt.MapFrom(src => src.ChannelNumber))
+            .ForMember(dest => dest.Direction, opt => opt.MapFrom(src => src.Direction))
+            .ForMember(dest => dest.IsEnabled, opt => opt.MapFrom(src => src.IsEnabled))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name));
+
+        CreateMap<DiagramAnnotation, DiagramAnnotationItemDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.CoordinateX, opt => opt.MapFrom(src => src.CoordinateX))
+            .ForMember(dest => dest.CoordinateY, opt => opt.MapFrom(src => src.CoordinateY))
+            .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
+            .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
+            .ForMember(dest => dest.Rotation, opt => opt.MapFrom(src => src.Rotation))
+            .ForMember(dest => dest.ZIndex, opt => opt.MapFrom(src => src.ZIndex))
+            .ForMember(dest => dest.IsLocked, opt => opt.MapFrom(src => src.IsLocked))
+            .ForMember(dest => dest.IsVisible, opt => opt.MapFrom(src => src.IsVisible))
+            .ForMember(dest => dest.Text, opt => opt.MapFrom(src => src.Text))
+            .ForMember(dest => dest.Shape, opt => opt.MapFrom(src => src.Shape))
+            .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
+            .ForMember(dest => dest.FontColor, opt => opt.MapFrom(src => src.FontColor))
+            .ForMember(dest => dest.FontSize, opt => opt.MapFrom(src => src.FontSize))
+            .ForMember(dest => dest.IsBold, opt => opt.MapFrom(src => src.IsBold))
+            .ForMember(dest => dest.BorderColor, opt => opt.MapFrom(src => src.BorderColor));
+
+        CreateMap<CanvasSettings, DiagramCanvasSettingsDto>()
+            .ForMember(dest => dest.GridSize, opt => opt.MapFrom(src => src.GridSize))
+            .ForMember(dest => dest.SnapToGrid, opt => opt.MapFrom(src => src.SnapToGrid))
+            .ForMember(dest => dest.BackgroundVariant, opt => opt.MapFrom(src => src.BackgroundVariant))
+            .ForMember(dest => dest.GridColor, opt => opt.MapFrom(src => src.GridColor))
+            .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
+            .ForMember(dest => dest.MinZoom, opt => opt.MapFrom(src => src.MinZoom))
+            .ForMember(dest => dest.MaxZoom, opt => opt.MapFrom(src => src.MaxZoom));
+        #endregion
+
+        #region Diagram aggregate (yazma — POST /api/Diagram/cabinet/{id}/save)
+        CreateMap<DiagramAnnotationDraft, DiagramAnnotation>()
+            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.Name))
+            .ForMember(dest => dest.CoordinateX, opt => opt.MapFrom(src => src.CoordinateX))
+            .ForMember(dest => dest.CoordinateY, opt => opt.MapFrom(src => src.CoordinateY))
+            .ForMember(dest => dest.Width, opt => opt.MapFrom(src => src.Width))
+            .ForMember(dest => dest.Height, opt => opt.MapFrom(src => src.Height))
+            .ForMember(dest => dest.Rotation, opt => opt.MapFrom(src => src.Rotation))
+            .ForMember(dest => dest.ZIndex, opt => opt.MapFrom(src => src.ZIndex))
+            .ForMember(dest => dest.IsLocked, opt => opt.MapFrom(src => src.IsLocked))
+            .ForMember(dest => dest.IsVisible, opt => opt.MapFrom(src => src.IsVisible))
+            .ForMember(dest => dest.Text, opt => opt.MapFrom(src => src.Text))
+            .ForMember(dest => dest.Shape, opt => opt.MapFrom(src => src.Shape))
+            .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
+            .ForMember(dest => dest.FontColor, opt => opt.MapFrom(src => src.FontColor))
+            .ForMember(dest => dest.FontSize, opt => opt.MapFrom(src => src.FontSize))
+            .ForMember(dest => dest.IsBold, opt => opt.MapFrom(src => src.IsBold))
+            .ForMember(dest => dest.BorderColor, opt => opt.MapFrom(src => src.BorderColor));
+        #endregion
+
+        #region CanvasSettings upsert (PUT /api/CanvasSettings/cabinet/{id})
+        CreateMap<CanvasSettingsUpsertDto, CanvasSettings>()
+            .ForMember(dest => dest.GridSize, opt => opt.MapFrom(src => src.GridSize))
+            .ForMember(dest => dest.SnapToGrid, opt => opt.MapFrom(src => src.SnapToGrid))
+            .ForMember(dest => dest.BackgroundVariant, opt => opt.MapFrom(src => src.BackgroundVariant))
+            .ForMember(dest => dest.GridColor, opt => opt.MapFrom(src => src.GridColor))
+            .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
+            .ForMember(dest => dest.MinZoom, opt => opt.MapFrom(src => src.MinZoom))
+            .ForMember(dest => dest.MaxZoom, opt => opt.MapFrom(src => src.MaxZoom));
+
+        CreateMap<CanvasSettingsUpsertDto, DiagramCanvasSettingsDto>()
+            .ForMember(dest => dest.GridSize, opt => opt.MapFrom(src => src.GridSize))
+            .ForMember(dest => dest.SnapToGrid, opt => opt.MapFrom(src => src.SnapToGrid))
+            .ForMember(dest => dest.BackgroundVariant, opt => opt.MapFrom(src => src.BackgroundVariant))
+            .ForMember(dest => dest.GridColor, opt => opt.MapFrom(src => src.GridColor))
+            .ForMember(dest => dest.BackgroundColor, opt => opt.MapFrom(src => src.BackgroundColor))
+            .ForMember(dest => dest.MinZoom, opt => opt.MapFrom(src => src.MinZoom))
+            .ForMember(dest => dest.MaxZoom, opt => opt.MapFrom(src => src.MaxZoom));
+        #endregion
+
+        #region ChannelEvent
+        CreateMap<ChannelEvent, ChannelEventDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.IoChannelId, opt => opt.MapFrom(src => src.IoChannelId))
+            .ForMember(dest => dest.CabinetId, opt => opt.MapFrom(src => src.CabinetId))
+            .ForMember(dest => dest.ChannelName, opt => opt.MapFrom(src => src.IoChannel != default ? src.IoChannel.Name : default))
+            .ForMember(dest => dest.ChannelNumber, opt => opt.MapFrom(src => src.IoChannel != default ? (int?)src.IoChannel.ChannelNumber : default))
+            .ForMember(dest => dest.DeviceId, opt => opt.MapFrom(src => src.IoChannel != default ? (Guid?)src.IoChannel.DeviceId : default))
+            .ForMember(dest => dest.DeviceName, opt => opt.MapFrom(src => src.IoChannel != default && src.IoChannel.Device != default ? src.IoChannel.Device.Name : default))
+            .ForMember(dest => dest.DeviceExternalCode, opt => opt.MapFrom(src => src.IoChannel != default && src.IoChannel.Device != default ? src.IoChannel.Device.ExternalCode : default))
+            .ForMember(dest => dest.Value, opt => opt.MapFrom(src => src.Value))
+            .ForMember(dest => dest.PreviousValue, opt => opt.MapFrom(src => src.PreviousValue))
+            .ForMember(dest => dest.OccurredAtUtc, opt => opt.MapFrom(src => src.OccurredAtUtc))
+            .ForMember(dest => dest.ReceivedAtUtc, opt => opt.MapFrom(src => src.ReceivedAtUtc));
+        #endregion
+
+        #region CameraCapture
+        CreateMap<CameraCapture, CameraCaptureDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.CameraId, opt => opt.MapFrom(src => src.CameraId))
+            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status))
+            .ForMember(dest => dest.CapturedAtUtc, opt => opt.MapFrom(src => src.CapturedAtUtc))
+            .ForMember(dest => dest.DurationSec, opt => opt.MapFrom(src => src.DurationSec))
+            .ForMember(dest => dest.RelativePath, opt => opt.MapFrom(src => src.RelativePath))
+            .ForMember(dest => dest.SizeBytes, opt => opt.MapFrom(src => src.SizeBytes))
+            .ForMember(dest => dest.FailureReason, opt => opt.MapFrom(src => src.FailureReason))
+            .ForMember(dest => dest.ExpiresAt, opt => opt.MapFrom(src => src.ExpiresAt))
+            .ForMember(dest => dest.RequestedByUserId, opt => opt.MapFrom(src => src.RequestedByUserId));
         #endregion
     }
 }

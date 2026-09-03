@@ -7,7 +7,6 @@ using CabinetOs.Business.Utils.CameraProtocolProfile;
 using CabinetOs.Business.Utils.ClipCaptureQueue;
 using CabinetOs.Business.Utils.SnapshotGateway;
 using CabinetOs.Business.Utils.ScadaCommandGateway;
-using CabinetOs.Business.Utils.ScadaService;
 using CabinetOs.Business.Utils.Diagram;
 
 namespace CabinetOs.Business
