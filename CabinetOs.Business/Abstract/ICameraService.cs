@@ -48,7 +48,7 @@ public interface ICameraService
     /// Durum DEGISMEDIYSE hicbir yazma yapilmaz: 5 dakikada bir yoklanan, surekli
     /// ayakta bir kamera sifir UPDATE uretir.
     /// </summary>
-    Task<Result> RecordProbeResultAsync(Guid cameraId, CameraProbeResultDto request, CancellationToken cancellationToken = default);
+    Task<Result> RecordProbeResultAsync(Guid cameraId, CameraProbeResultDto result, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Canli izleme bileti uretir ve medya gecidinde ilgili yolu kurar.

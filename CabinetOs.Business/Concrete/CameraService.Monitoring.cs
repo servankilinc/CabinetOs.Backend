@@ -13,9 +13,9 @@ namespace CabinetOs.Business.Concrete;
 /// </summary>
 public partial class CameraService
 {
-    public async Task<Result> RecordProbeResultAsync(Guid cameraId, CameraProbeResultDto request, CancellationToken cancellationToken = default)
+    public async Task<Result> RecordProbeResultAsync(Guid cameraId, CameraProbeResultDto result, CancellationToken cancellationToken = default)
     {
-        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
+        var validationResult = await _validationService.ValidateAsync(result, cancellationToken);
         if (!validationResult.IsValid)
             return Result.Validation(validationResult.Failures, description: "Validation failed for CameraProbeResultDto");
 
@@ -27,8 +27,8 @@ public partial class CameraService
         if (camera == null)
             return Result.NotFound(description: "Kamera bulunamadi");
 
-        var nextStatus = request.Reachable ? (int)DeviceStatusEnum.Online : (int)DeviceStatusEnum.Offline;
-        var nextError = request.Reachable ? null : Truncate(request.Error, 512);
+        var nextStatus = result.Reachable ? (int)DeviceStatusEnum.Online : (int)DeviceStatusEnum.Offline;
+        var nextError = result.Reachable ? null : Truncate(result.Error, 512);
 
         // DEGISMEDIYSE HIC YAZMA. Ingest'in "degeri degismeyen kanala dokunma"
         // kuralinin aynisi ve ayni gerekcesi: 5 dakikada bir yoklanan, surekli
@@ -41,10 +41,10 @@ public partial class CameraService
         bool statusChanged = camera.DeviceStatusId != nextStatus;
         bool errorChanged = camera.LastConnectionError != nextError;
 
-        if (request.Reachable)
+        if (result.Reachable)
             camera.LastSeen = DateTime.UtcNow;
 
-        if (!statusChanged && !errorChanged && !request.Reachable)
+        if (!statusChanged && !errorChanged && !result.Reachable)
             return Result.Success();
 
         camera.DeviceStatusId = nextStatus;
