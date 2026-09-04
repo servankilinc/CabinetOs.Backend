@@ -53,7 +53,4 @@ public partial class CameraService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Success();
     }
-
-    private static string? Truncate(string? value, int max)
-        => value == null || value.Length <= max ? value : value[..max];
 }

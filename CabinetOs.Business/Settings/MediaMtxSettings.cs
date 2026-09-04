@@ -33,7 +33,7 @@ public class MediaMtxSettings
     /// Biletin omru (saniye). Kisa tutuluyor: bilet yalnizca el sikisma aninda
     /// kullanilir, uzun omur yalnizca calinma penceresini buyuturdu.
     /// </summary>
-    public int TicketTtlSeconds { get; set; } = 60;
+    public int TokenTtlSeconds { get; set; } = 60;
 
     /// <summary>
     /// Son izleyici ayrildiktan sonra MediaMTX'in kameraya olan RTSP oturumunu

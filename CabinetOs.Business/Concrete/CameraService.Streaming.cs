@@ -48,7 +48,7 @@ public partial class CameraService
             return Result<StreamTokenDto>.NotFound(description: "Kamera bulunamadi");
 
         if (!camera.IsActive)
-            return StreamProblem<StreamTokenDto>("IsActive", "Pasif kamera izlenemez.");
+            return StreamValidationProblem<StreamTokenDto>("IsActive", "Pasif kamera izlenemez.");
 
         // Kapali bir akim icin yol kurmak, MediaMTX'in var olmayan bir kanala
         // baglanmaya calisip zaman asimina dusmesi demekti. Sebep burada acikca
@@ -58,7 +58,7 @@ public partial class CameraService
         {
             string field = profile == StreamProfile.Main ? "MainStreamEnabled" : "SubStreamEnabled";
             string label = profile == StreamProfile.Main ? "Ana akım" : "Tali akım";
-            return StreamProblem<StreamTokenDto>(field, $"{label} bu kamerada kapalı.");
+            return StreamValidationProblem<StreamTokenDto>(field, $"{label} bu kamerada kapalı.");
         }
 
         var ensureResult = await _mediaGateway.EnsureLivePathAsync(camera, profile, cancellationToken);
@@ -72,7 +72,7 @@ public partial class CameraService
         // varyant icin sabittir — bir yetkilendirme sirri icin yanlis arac.
         string ticket = Base64Url(RandomNumberGenerator.GetBytes(32));
 
-        var ttl = TimeSpan.FromSeconds(_mediaMtxSettings.TicketTtlSeconds);
+        var ttl = TimeSpan.FromSeconds(_mediaMtxSettings.TokenTtlSeconds);
         var expiresAt = DateTime.UtcNow.Add(ttl);
 
         await _cache.SetStringAsync(
@@ -140,12 +140,4 @@ public partial class CameraService
     /// </summary>
     private static string Base64Url(byte[] bytes) =>
         Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
-
-    /// <summary>
-    /// Kameranin tanimindan kaynaklanan, kullanicinin duzeltebilecegi durumlar
-    /// 400 doner — 500 degil. Sozluk anahtari <c>Camera</c> alan adiyla ayni
-    /// (sozlesme geregi PascalCase).
-    /// </summary>
-    private static Result<T> StreamProblem<T>(string field, string message) =>
-        Result<T>.Validation(new Dictionary<string, string[]> { [field] = [message] }, description: message);
 }

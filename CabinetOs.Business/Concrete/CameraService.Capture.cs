@@ -180,7 +180,7 @@ public partial class CameraService
             return Result<CameraCaptureDto>.NotFound(description: "Kamera bulunamadi");
 
         if (!camera.IsActive)
-            return StreamProblem<CameraCaptureDto>("IsActive", "Pasif kameradan çekim yapılamaz.");
+            return StreamValidationProblem<CameraCaptureDto>("IsActive", "Pasif kameradan çekim yapılamaz.");
 
         return request.Type == CaptureType.Clip
             ? await StartClipCaptureAsync(camera, request, cancellationToken)
@@ -257,11 +257,11 @@ public partial class CameraService
     {
         // Klip ana akimdan alinir; tali akimin cozunurlugu delil icin yetersiz.
         if (!camera.MainStreamEnabled)
-            return StreamProblem<CameraCaptureDto>("MainStreamEnabled", "Klip ana akımdan alınır; bu kamerada ana akım kapalı.");
+            return StreamValidationProblem<CameraCaptureDto>("MainStreamEnabled", "Klip ana akımdan alınır; bu kamerada ana akım kapalı.");
 
         int duration = request.DurationSec!.Value;
         if (duration > _captureSettings.MaxClipDurationSec)
-            return StreamProblem<CameraCaptureDto>(
+            return StreamValidationProblem<CameraCaptureDto>(
                 "DurationSec",
                 $"Klip süresi en fazla {_captureSettings.MaxClipDurationSec} saniye olabilir.");
 

@@ -318,4 +318,16 @@ public partial class CameraService : ICameraService
         CreateDateUtc = c.CreateDateUtc,
         UpdateDateUtc = c.UpdateDateUtc
     };
+
+
+    /// <summary>
+    /// Kameranin tanimindan kaynaklanan, kullanicinin duzeltebilecegi durumlar
+    /// 400 doner — 500 degil. Sozluk anahtari <c>Camera</c> alan adiyla ayni
+    /// (sozlesme geregi PascalCase).
+    /// </summary>
+    private static Result<T> StreamValidationProblem<T>(string field, string message) =>
+        Result<T>.Validation(new Dictionary<string, string[]> { [field] = [message] }, description: message);
+
+    private static string? Truncate(string? value, int max)
+        => value == null || value.Length <= max ? value : value[..max];
 }
