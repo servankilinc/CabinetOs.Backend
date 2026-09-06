@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CabinetOs.Business.Utils;
 using CabinetOs.Core.Utils;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Dtos.DeviceCommand.Commands;
@@ -7,6 +8,7 @@ using CabinetOs.Model.Dtos.Realtime.Queries;
 using CabinetOs.Model.Dtos.Scada.Commands;
 using CabinetOs.Model.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Business.Concrete;
@@ -70,46 +72,53 @@ public partial class DeviceCommandService
                 new Dictionary<string, string[]> { ["CabinetId"] = ["Kabinin SCADA adresi tanımlı değil"] },
                 description: "SCADA base url missing");
 
-        // Dis kodu olmayan cihaza kumanda GONDERILEMEZ. Bu, ingest sozlesmesinin
-        // dogrudan sonucu: SCADA bizim Guid'lerimizi bilmez, cihazi yalnizca
-        // ExternalCode ile tanir. Kontrol olmasaydi gonderi bos bir kod tasir,
-        // SCADA onu tanimaz ve komut "basarisiz" olarak degil, hicbir sey
-        // yapmadan "basarili" olarak donebilirdi.
-        if (string.IsNullOrWhiteSpace(device.ExternalCode))
+        // NOT: Burada eskiden "dis kodu olmayan cihaza kumanda gonderilemez"
+        // kontrolu vardi. Kabin = tek kontrol karti oldugu ve gonderi artik
+        // cabinetId + pin tasidigi icin ExternalCode'un tel uzerinde karsiligi
+        // kalmadi; kontrol de dayanaksiz kaldigi icin kaldirildi.
+
+        // Hedef kanal KOSULSUZ zorunlu (validator de oyle diyor). Burada tekrar
+        // kontrol ediliyor cunku gonderi artik kanaldan turetilen bir pin adresi
+        // tasiyor: kanalsiz bir kumandanin gidecek adresi olmazdi.
+        if (request.IoChannelId is not Guid channelId)
             return Result<DeviceCommandResultDto>.Validation(
-                new Dictionary<string, string[]> { ["ExternalCode"] = ["Cihazın dış kodu tanımlı değil; SCADA onu tanımaz"] },
-                description: "Device has no external code");
+                new Dictionary<string, string[]> { ["IoChannelId"] = ["Kumanda için hedef kanal zorunlu"] },
+                description: "Channel is required");
 
-        IoChannel? channel = null;
-        if (request.IoChannelId is Guid channelId)
-        {
-            // Kanal, CIHAZLA BIRLIKTE sorgulaniyor: baska bir cihazin kanalina
-            // bu cihaz uzerinden komut gonderilmesi engellenmis oluyor. "Yok" ile
-            // "baska cihaza ait" ayni mesaji donuyor; ayirmak, baskasinin kanal
-            // Id'lerini yoklamaya yarardi.
-            channel = await _unitOfWork.IoChannels.GetAsync(
-                where: c => c.Id == channelId && c.DeviceId == deviceId,
-                tracking: false,
-                cancellationToken: cancellationToken);
+        // Kanal, CIHAZLA BIRLIKTE sorgulaniyor: baska bir cihazin kanalina bu
+        // cihaz uzerinden komut gonderilmesi engellenmis oluyor. "Yok" ile
+        // "baska cihaza ait" ayni mesaji donuyor; ayirmak, baskasinin kanal
+        // Id'lerini yoklamaya yarardi.
+        var channel = await _unitOfWork.IoChannels.GetAsync(
+            where: c => c.Id == channelId && c.DeviceId == deviceId,
+            tracking: false,
+            cancellationToken: cancellationToken);
 
-            if (channel == null)
-                return Result<DeviceCommandResultDto>.Validation(
-                    new Dictionary<string, string[]> { ["IoChannelId"] = ["Kanal bu cihaza ait değil"] },
-                    description: "Channel does not belong to device");
+        if (channel == null)
+            return Result<DeviceCommandResultDto>.Validation(
+                new Dictionary<string, string[]> { ["IoChannelId"] = ["Kanal bu cihaza ait değil"] },
+                description: "Channel does not belong to device");
 
-            if (!channel.IsEnabled)
-                return Result<DeviceCommandResultDto>.Validation(
-                    new Dictionary<string, string[]> { ["IoChannelId"] = ["Kanal devre dışı"] },
-                    description: "Channel disabled");
+        if (!channel.IsEnabled)
+            return Result<DeviceCommandResultDto>.Validation(
+                new Dictionary<string, string[]> { ["IoChannelId"] = ["Kanal devre dışı"] },
+                description: "Channel disabled");
 
-            // Yon kontrolu. Reddedilen YALNIZCA Input; Bidirectional gecerli bir
-            // kumanda hedefidir (adi geregi cikis da verebilir) ve onu reddetmek
-            // mesru bir komutu engellemek olurdu.
-            if (channel.Direction == PinDirection.Input)
-                return Result<DeviceCommandResultDto>.Validation(
-                    new Dictionary<string, string[]> { ["IoChannelId"] = ["Giriş yönlü kanala kumanda gönderilemez"] },
-                    description: "Channel is input-only");
-        }
+        // Yon kontrolu. Reddedilen YALNIZCA Input; Bidirectional gecerli bir
+        // kumanda hedefidir (adi geregi cikis da verebilir) ve onu reddetmek
+        // mesru bir komutu engellemek olurdu.
+        if (channel.Direction == PinDirection.Input)
+            return Result<DeviceCommandResultDto>.Validation(
+                new Dictionary<string, string[]> { ["IoChannelId"] = ["Giriş yönlü kanala kumanda gönderilemez"] },
+                description: "Channel is input-only");
+
+        // ------------------------------------------------------- NO/NC kutbu
+        var polarity = await ResolvePolarityAsync(channel.Id, cancellationToken);
+        if (!polarity.IsSuccess)
+            return Result<DeviceCommandResultDto>.Validation(polarity.Errors!, description: polarity.Description);
+
+        bool turnOn = request.TurnOn!.Value;
+        string sentValue = ContactPolarity.ToWireValue(turnOn, polarity.Contact);
 
         // ------------------------------------------------------------ satir yazimi
         // Satir GONDERIMDEN ONCE yazilir. Sebep: sunucu tam bu noktada cokerse
@@ -119,9 +128,9 @@ public partial class DeviceCommandService
         var command = new DeviceCommand
         {
             DeviceId = device.Id,
-            IoChannelId = channel?.Id,
+            IoChannelId = channel.Id,
             CommandType = request.CommandType,
-            PayloadJson = BuildPayloadJson(request),
+            PayloadJson = BuildPayloadJson(turnOn, sentValue, polarity.Contact),
             Status = CommandStatus.Sent,
             RequestedByUserId = ResolveRequesterId(),
             SentAt = issuedAt
@@ -136,10 +145,9 @@ public partial class DeviceCommandService
             {
                 CommandId = command.Id,
                 CabinetId = cabinet.Id,
-                ExternalCode = device.ExternalCode!,
-                ChannelNumber = channel?.ChannelNumber,
+                Pin = ScadaPinAddress.Format(channel.Direction, channel.ChannelNumber),
                 CommandType = request.CommandType,
-                Value = request.Value,
+                Value = sentValue,
                 IssuedAtUtc = issuedAt
             },
             TimeSpan.FromMilliseconds(Math.Clamp(cabinet.ScadaCommandTimeoutMs, MinTimeoutMs, MaxTimeoutMs)));
@@ -161,8 +169,8 @@ public partial class DeviceCommandService
         {
             CommandId = command.Id,
             DeviceId = device.Id,
-            IoChannelId = channel?.Id,
-            ChannelNumber = channel?.ChannelNumber,
+            IoChannelId = channel.Id,
+            ChannelNumber = channel.ChannelNumber,
             CommandType = command.CommandType,
             Status = command.Status,
             ResultMessage = command.ResultMessage,
@@ -170,7 +178,7 @@ public partial class DeviceCommandService
             RequestedByName = requestedByName
         }, CancellationToken.None);
 
-        return Result<DeviceCommandResultDto>.Success(ToResultDto(command, channel?.ChannelNumber, requestedByName));
+        return Result<DeviceCommandResultDto>.Success(ToResultDto(command, channel.ChannelNumber, requestedByName));
     }
 
     /// <summary>
@@ -202,10 +210,100 @@ public partial class DeviceCommandService
     /// (bkz. <see cref="DeviceCommandSendRequest"/>); string'i sunucu kuruyor ki
     /// veritabaninda duran metin ile tel uzerinde giden metin AYNI olsun.
     /// </summary>
-    private static string BuildPayloadJson(DeviceCommandSendRequest request) =>
-        JsonSerializer.Serialize(new CommandPayload(request.Value), ProjectJsonOptions.SerializerOptions);
+    private static string BuildPayloadJson(bool turnOn, string value, PinFunction? polarity) =>
+        JsonSerializer.Serialize(new CommandPayload(turnOn, value, polarity), ProjectJsonOptions.SerializerOptions);
 
-    private sealed record CommandPayload(string? Value);
+    /// <summary>
+    /// Gecmis kaydinin govdesi. NIYET ve TELDEKI DEGER birlikte yazilir: yalnizca
+    /// deger saklansaydi, NC kabloli bir rolenin gecmisinde <c>"0"</c> goren biri
+    /// bunun "kapat" mi yoksa "ac" mi oldugunu bir daha cikaramazdi. Kutup da
+    /// yaninda duruyor ki kablolama sonradan degisse bile o anki yorum sabit
+    /// kalsin.
+    /// </summary>
+    private sealed record CommandPayload(bool TurnOn, string Value, PinFunction? Polarity);
+
+    /// <summary>
+    /// Kanalin NO/NC kutbu — hangi kontagin YUKU tasidigi.
+    ///
+    /// Tipik bir role kanalinda uc pin olur (COM + NO + NC), yani "ikisi de var"
+    /// NORMAL durumdur ve karari kablo verir: yuk hangi kontaga cekilmisse o
+    /// kazanir. Bunun bilinen bedeli, <b>kabloyu silmenin komutun anlamini
+    /// degistirebilmesidir</b>; kanalda acik bir kutup alani bu riski tasimazdi
+    /// ama sema genisletmemek bilincli bir tercih.
+    ///
+    /// Belirsizlikte varsayilan SECILMEZ: ikisi de kabloluysa hangisinin yuk
+    /// oldugunu bilemeyiz ve yanlis tahmin sahada roleyi ters surerdi. Hicbiri
+    /// kablolu degilse NO varsayilir (yaygin kabul) — henuz kablolanmamis bir
+    /// roleyi test etmek mesru bir istektir ve engellemek gereksiz olurdu.
+    /// </summary>
+    private async Task<PolarityResolution> ResolvePolarityAsync(Guid ioChannelId, CancellationToken cancellationToken)
+    {
+        var contacts = await _unitOfWork.Pins.GetAllAsync(
+            select: p => new { p.Id, p.Function },
+            where: p => p.IoChannelId == ioChannelId
+                     && (p.Function == PinFunction.NO || p.Function == PinFunction.NC),
+            cancellationToken: cancellationToken) ?? [];
+
+        // Kutup sorusu olmayan kanal: LED, duz dijital cikis, kuru kontak.
+        if (contacts.Count == 0)
+            return PolarityResolution.Resolved(null);
+
+        var distinct = contacts.Select(c => c.Function).Distinct().ToList();
+        if (distinct.Count == 1)
+            return PolarityResolution.Resolved(distinct[0]);
+
+        // Hem NO hem NC pini var -> kabloya bak.
+        var contactIds = contacts.Select(c => c.Id).ToList();
+        var wiredPinIds = await _unitOfWork.Connections.GetAllAsync(
+            select: c => new { c.SourcePinId, c.TargetPinId },
+            where: c => contactIds.Contains(c.SourcePinId) || contactIds.Contains(c.TargetPinId),
+            cancellationToken: cancellationToken) ?? [];
+
+        var wired = new HashSet<Guid>();
+        foreach (var connection in wiredPinIds)
+        {
+            wired.Add(connection.SourcePinId);
+            wired.Add(connection.TargetPinId);
+        }
+
+        var wiredFunctions = contacts
+            .Where(c => wired.Contains(c.Id))
+            .Select(c => c.Function)
+            .Distinct()
+            .ToList();
+
+        if (wiredFunctions.Count == 1)
+            return PolarityResolution.Resolved(wiredFunctions[0]);
+
+        if (wiredFunctions.Count > 1)
+            return PolarityResolution.Ambiguous();
+
+        _logger.LogWarning(
+            "Kanal {IoChannelId}: NO ve NC kontaklarinin hicbiri kablolu degil; " +
+            "kutup NO varsayildi. Yuk kablolandiginda komut anlami degisebilir.",
+            ioChannelId);
+
+        return PolarityResolution.Resolved(PinFunction.NO);
+    }
+
+    /// <summary>
+    /// Kutup cozumlemesinin sonucu. <c>Result&lt;T&gt;</c> yerine ozel bir tip:
+    /// "cozuldu ama deger null" (kutup sorusu olmayan kanal) ile "cozulemedi"
+    /// ayrimini <c>PinFunction?</c> tek basina tasiyamazdi.
+    /// </summary>
+    private readonly record struct PolarityResolution(bool IsSuccess, PinFunction? Contact, Dictionary<string, string[]>? Errors, string? Description)
+    {
+        public static PolarityResolution Resolved(PinFunction? contact) => new(true, contact, null, null);
+
+        public static PolarityResolution Ambiguous() => new(
+            false,
+            null,
+            new Dictionary<string, string[]>
+            {
+                ["IoChannelId"] = ["Bu kanalda hem NO hem NC kontağı kablolu; hangisinin yükü taşıdığı belirsiz. Kullanılmayan kabloyu kaldırın."]
+            },
+            "Ambiguous contact polarity");
+    }
 
     private Guid? ResolveRequesterId()
     {
@@ -220,22 +318,55 @@ public partial class DeviceCommandService
         return name.IsSuccess ? name.Data : null;
     }
 
-    private static DeviceCommandResultDto ToResultDto(DeviceCommand command, int? channelNumber, string? requestedByName) => new()
+    private static DeviceCommandResultDto ToResultDto(DeviceCommand command, int? channelNumber, string? requestedByName)
     {
-        Id = command.Id,
-        DeviceId = command.DeviceId,
-        IoChannelId = command.IoChannelId,
-        ChannelNumber = channelNumber,
-        CommandType = command.CommandType,
-        PayloadJson = command.PayloadJson,
-        Status = command.Status,
-        ResultMessage = command.ResultMessage,
-        SentAt = command.SentAt,
-        RespondedAt = command.RespondedAt,
-        ElapsedMs = ElapsedMs(command.SentAt, command.RespondedAt),
-        RequestedByUserId = command.RequestedByUserId,
-        RequestedByName = requestedByName
-    };
+        var payload = ReadPayload(command.PayloadJson);
+
+        return new DeviceCommandResultDto
+        {
+            Id = command.Id,
+            DeviceId = command.DeviceId,
+            IoChannelId = command.IoChannelId,
+            ChannelNumber = channelNumber,
+            CommandType = command.CommandType,
+            PayloadJson = command.PayloadJson,
+            SentValue = payload?.Value,
+            ResolvedPolarity = payload?.Polarity,
+            Status = command.Status,
+            ResultMessage = command.ResultMessage,
+            SentAt = command.SentAt,
+            RespondedAt = command.RespondedAt,
+            ElapsedMs = ElapsedMs(command.SentAt, command.RespondedAt),
+            RequestedByUserId = command.RequestedByUserId,
+            RequestedByName = requestedByName
+        };
+    }
+
+    /// <summary>
+    /// <c>SentValue</c> / <c>ResolvedPolarity</c> saklanan payload'dan OKUNUR,
+    /// ayri kolonlardan degil.
+    ///
+    /// Sebep: gecmis ucu ile gonderim ucu AYNI sekli dondurmek zorunda
+    /// (<see cref="DeviceCommandResultDto"/>) ve gecmiste elimizdeki tek kayit
+    /// payload. Kutbu ayrica kolonlastirmak, ayni bilgiyi iki yerde tutup
+    /// ayrismalarina izin vermek olurdu.
+    ///
+    /// Bozuk/eski bir payload sessizce <c>null</c> uretir: gecmis listesi tek bir
+    /// okunamayan satir yuzunden 500 vermemeli.
+    /// </summary>
+    private static CommandPayload? ReadPayload(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<CommandPayload>(payloadJson, ProjectJsonOptions.SerializerOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// Iki uc de AYNI hesabi kullanir; istemcinin tarih aritmetigi yapmasina gerek

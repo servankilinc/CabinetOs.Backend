@@ -1,6 +1,7 @@
 ﻿using CabinetOs.Business.Utils;
 using CabinetOs.Model.Dtos.Diagram.Commands;
 using CabinetOs.Model.Dtos.Diagram.Commands.Items;
+using CabinetOs.Model.Dtos.Scada.Commands;
 using CabinetOs.Model.Entities;
 using static CabinetOs.Model.Enums.EntityEnums;
 
@@ -67,8 +68,47 @@ public partial class DiagramService
             DeviceExternalCodes = await LoadDeviceExternalCodesAsync(cabinetId, request, cancellationToken),
             NewPins = BuildNewPinRefs(newDevices, templatePins),
             ClaimedPinIds = await LoadClaimedPinIdsAsync(newDevices, cancellationToken),
-            ClaimedIoChannelIds = await LoadClaimedIoChannelIdsAsync(newDevices, cancellationToken)
+            ClaimedIoChannelIds = await LoadClaimedIoChannelIdsAsync(newDevices, cancellationToken),
+            CabinetChannelAddresses = await LoadCabinetChannelAddressesAsync(cabinetId, newDevices, cancellationToken)
         };
+    }
+
+    /// <summary>
+    /// Kabinde HALIHAZIRDA kullanilan kanal adresleri -> sahibi cihazin adi.
+    ///
+    /// <b>Neden kabin geneli.</b> Kabin BIR kontrol kartidir ve kartin adres
+    /// uzayi duzdur: <c>IN1</c> kabinde tektir, cihazda degil
+    /// (<c>IX_IoChannel_CabinetId_Direction_ChannelNumber</c>). Bu kontrol
+    /// olmasaydi ayni sablonu ikinci kez birakmak, dogrulamadan gecip
+    /// SaveChanges'te benzersiz indeks ihlaliyle 500 verirdi — kullaniciya
+    /// hicbir sey anlatmayan bir hata.
+    ///
+    /// Cihaz ADI da okunuyor: "IN1 zaten kullaniliyor" tek basina operatore
+    /// hangi kutuya bakacagini soylemez.
+    ///
+    /// Yalnizca YENI cihaz varken sorgulanir; mevcut cihazlarin kanallari zaten
+    /// yerinde ve bu gonderide degismiyor. Silinen cihazlarin kanallari HARIC
+    /// TUTULMAZ: kanallar cihazla birlikte kalkmiyor (IoChannel soft-delete ve
+    /// diyagram kaydetme onlara dokunmuyor), dolayisiyla adres isgal edilmeye
+    /// devam ediyor.
+    /// </summary>
+    private async Task<Dictionary<(PinDirection Direction, int ChannelNumber), string>> LoadCabinetChannelAddressesAsync(
+        Guid cabinetId,
+        List<DeviceDraft> newDevices,
+        CancellationToken cancellationToken)
+    {
+        if (newDevices.Count == 0) return [];
+
+        var rows = await _unitOfWork.IoChannels.GetAllAsync(
+            select: c => new ChannelAddressRow(c.Direction, c.ChannelNumber, c.Device!.Name),
+            where: c => c.CabinetId == cabinetId,
+            cancellationToken: cancellationToken) ?? [];
+
+        var map = new Dictionary<(PinDirection, int), string>();
+        foreach (var row in rows)
+            map[(row.Direction, row.ChannelNumber)] = row.DeviceName;
+
+        return map;
     }
 
     /// <summary>
@@ -369,6 +409,9 @@ public partial class DiagramService
         // Id'sini paylasmasi da bir carpismadir.
         var seenPinIds = new HashSet<Guid>();
         var seenChannelIds = new HashSet<Guid>();
+        // Ayni gonderide iki YENI cihaz da ayni adresi isteyebilir; DB'de henuz
+        // ikisi de yok oldugu icin bunu CabinetChannelAddresses yakalayamaz.
+        var seenChannelAddresses = new HashSet<(PinDirection, int)>();
 
         for (int i = 0; i < request.Devices.Upserted.Count; i++)
         {
@@ -403,7 +446,7 @@ public partial class DiagramService
                 continue;
             }
 
-            ValidateDevicePinIdentities(draft, key, context, seenPinIds, seenChannelIds, errors);
+            ValidateDevicePinIdentities(draft, key, context, seenPinIds, seenChannelIds, seenChannelAddresses, errors);
         }
     }
 
@@ -425,6 +468,7 @@ public partial class DiagramService
         SaveContext context,
         HashSet<Guid> seenPinIds,
         HashSet<Guid> seenChannelIds,
+        HashSet<(PinDirection, int)> seenChannelAddresses,
         Dictionary<string, List<string>> errors)
     {
         var templatePins = context.TemplatePins.GetValueOrDefault(draft.ComponentTemplateId) ?? [];
@@ -448,26 +492,46 @@ public partial class DiagramService
             AddError(errors, $"{key}.Pins", "Gonderilen pinler sablonun pin semasiyla ortusmuyor");
 
         // ---- kanallar ----
-        var expectedChannelNumbers = templatePins
+        // Adres artik (yon, numara) CIFTI: kartta IN1 ile OUT1 ayri noktalar.
+        var expectedAddresses = templatePins
             .Where(p => p.ChannelNumber.HasValue)
-            .Select(p => p.ChannelNumber!.Value)
+            .Select(p => (p.Direction, p.ChannelNumber!.Value))
             .ToHashSet();
-        var sentChannelNumbers = new HashSet<int>();
+        var sentAddresses = new HashSet<(PinDirection, int)>();
 
         foreach (var channel in draft.IoChannels)
         {
-            if (!sentChannelNumbers.Add(channel.ChannelNumber))
-                AddError(errors, $"{key}.IoChannels", "Ayni kanal numarasi icin birden fazla kanal gonderildi");
+            var address = (channel.Direction, channel.ChannelNumber);
+
+            if (!sentAddresses.Add(address))
+                AddError(errors, $"{key}.IoChannels", "Ayni kanal adresi icin birden fazla kanal gonderildi");
 
             if (!seenChannelIds.Add(channel.Id))
                 AddError(errors, $"{key}.IoChannels", "Ayni kanal kimligi gonderide birden fazla kez var");
             else if (context.ClaimedIoChannelIds.Contains(channel.Id))
                 AddError(errors, $"{key}.IoChannels", "Bu kanal kimligi zaten kullanimda");
+
+            // KABIN GENELI CAKISMA. Kabin bir kontrol kartidir; kartin adres
+            // uzayi duz oldugu icin ayni sablonu ikinci kez birakmak burada
+            // durur. Kontrol olmasaydi benzersiz indeks SaveChanges'te patlar ve
+            // operatore hicbir sey anlatmayan bir 500 donerdi.
+            var label = FormatChannelAddress(channel.Direction, channel.ChannelNumber);
+
+            if (context.CabinetChannelAddresses.TryGetValue(address, out var ownerName))
+                AddError(errors, $"{key}.IoChannels",
+                    $"{label} bu kabinde zaten kullaniliyor ({ownerName}). Kabin tek bir kontrol kartidir; kanal adresleri kabin genelinde benzersizdir.");
+            else if (!seenChannelAddresses.Add(address))
+                AddError(errors, $"{key}.IoChannels",
+                    $"{label} ayni gonderide birden fazla cihaz tarafindan isteniyor. Kabin tek bir kontrol kartidir; kanal adresleri kabin genelinde benzersizdir.");
         }
 
-        if (!sentChannelNumbers.SetEquals(expectedChannelNumbers))
-            AddError(errors, $"{key}.IoChannels", "Gonderilen kanallar sablonun kanal numaralariyla ortusmuyor");
+        if (!sentAddresses.SetEquals(expectedAddresses))
+            AddError(errors, $"{key}.IoChannels", "Gonderilen kanallar sablonun kanal adresleriyle ortusmuyor");
     }
+
+    /// <summary>Hata mesajlarinda kartin kendi dili kullanilir: "IN1", "OUT17".</summary>
+    private static string FormatChannelAddress(PinDirection direction, int channelNumber) =>
+        ScadaPinAddress.Format(direction, channelNumber);
 
     /// <summary>
     /// Kablo taslaklari: uclar cozulebiliyor mu, degismez mi kalmis, cift zaten
@@ -800,9 +864,9 @@ public partial class DiagramService
     /// bir <c>IoChannel</c> uretir.
     ///
     /// <b>Kanallar neden burada dogar.</b> Bu olmadan SCADA ingest'inin yazacagi
-    /// HICBIR SATIR olmazdi: ingest kanali <c>(DeviceId, ChannelNumber)</c> ile
-    /// cozuyor ve tanimadigi kanali sessizce atliyor (K7). Kanallari ureten baska bir
-    /// yol da yok — urunde cihaz yaratmanin tek yolu paletten birakmak.
+    /// HICBIR SATIR olmazdi: ingest kanali <c>(CabinetId, Direction, ChannelNumber)</c>
+    /// ile cozuyor ve tanimadigi kanali sessizce atliyor (K7). Kanallari ureten baska
+    /// bir yol da yok — urunde cihaz yaratmanin tek yolu paletten birakmak.
     ///
     /// <b>Id'leri ISTEMCI uretir, icerigi SUNUCU.</b> Taslak yalnizca
     /// "su sablon pini icin su Guid'i kullan" der; ad, konum, fonksiyon, yon ve
@@ -818,13 +882,13 @@ public partial class DiagramService
     private void InstantiateTemplatePins(Device device, List<ComponentTemplatePin> templatePins, DeviceDraft draft)
     {
         var pinIdByTemplatePinId = draft.Pins.ToDictionary(p => p.ComponentTemplatePinId, p => p.Id);
-        var channelIdByNumber = draft.IoChannels.ToDictionary(c => c.ChannelNumber, c => c.Id);
+        var channelIdByAddress = draft.IoChannels.ToDictionary(c => (c.Direction, c.ChannelNumber), c => c.Id);
 
-        // Ayni cihazda ayni kanal numarasi TEK bir IoChannel'dir. Sablonda iki pin
-        // ayni kanali gosteriyorsa (or. bir girisin besleme ve donus ucu) ikisi de
-        // ayni kanala baglanir; ayri ayri uretmek
-        // IX_IoChannel_DeviceId_ChannelNumber'i ihlal ederdi.
-        var channelsByNumber = new Dictionary<int, IoChannel>();
+        // Ayni (yon, kanal numarasi) cifti TEK bir IoChannel'dir. Sablonda iki pin
+        // ayni kanali gosteriyorsa (or. bir rolenin COM ve NO uclari) ikisi de ayni
+        // kanala baglanir; ayri ayri uretmek
+        // IX_IoChannel_CabinetId_Direction_ChannelNumber'i ihlal ederdi.
+        var channelsByAddress = new Dictionary<(PinDirection, int), IoChannel>();
 
         foreach (var templatePin in templatePins)
         {
@@ -845,19 +909,27 @@ public partial class DiagramService
 
             if (templatePin.ChannelNumber is int channelNumber)
             {
-                if (!channelsByNumber.TryGetValue(channelNumber, out var channel))
+                var address = (templatePin.Direction, channelNumber);
+
+                if (!channelsByAddress.TryGetValue(address, out var channel))
                 {
                     channel = new IoChannel
                     {
-                        Id = channelIdByNumber[channelNumber],
+                        Id = channelIdByAddress[address],
                         Device = device,
+                        // CabinetId denormalize: benzersizlik kabin kapsamli ve
+                        // bir kolon olmadan indekse dokulemezdi. Navigasyon
+                        // uzerinden atanir ki EF ekleme sirasini kendisi cozsun
+                        // ve ayni bilgi iki yerde tutulmasin.
+                        Cabinet = device.Cabinet,
+                        CabinetId = device.CabinetId,
                         ChannelNumber = channelNumber,
                         Direction = templatePin.Direction,
                         IsEnabled = true,
                         Name = templatePin.Name
                     };
                     _unitOfWork.IoChannels.Add(channel);
-                    channelsByNumber[channelNumber] = channel;
+                    channelsByAddress[address] = channel;
                 }
 
                 pin.IoChannel = channel;
@@ -908,6 +980,8 @@ public partial class DiagramService
         public required HashSet<Guid> ClaimedPinIds { get; init; }
         /// <summary>Gonderilen kanal Id'lerinden DB'de zaten var olanlar (carpisma).</summary>
         public required HashSet<Guid> ClaimedIoChannelIds { get; init; }
+        /// <summary>Kabinde kullanimda olan kanal adresleri -> sahibi cihazin adi.</summary>
+        public required Dictionary<(PinDirection Direction, int ChannelNumber), string> CabinetChannelAddresses { get; init; }
     }
 
     /// <summary>
@@ -920,4 +994,6 @@ public partial class DiagramService
     private sealed record PinPairRow(Guid Id, Guid SourcePinId, Guid TargetPinId);
 
     private sealed record DeviceCodeRow(Guid Id, string ExternalCode);
+
+    private sealed record ChannelAddressRow(PinDirection Direction, int ChannelNumber, string DeviceName);
 }

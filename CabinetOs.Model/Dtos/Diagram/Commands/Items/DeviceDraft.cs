@@ -1,5 +1,6 @@
 using CabinetOs.Core.Model;
 using CabinetOs.Model.Dtos.Diagram.Commands.Abstract;
+using CabinetOs.Model.Enums;
 using FluentValidation;
 
 namespace CabinetOs.Model.Dtos.Diagram.Commands.Items;
@@ -126,21 +127,35 @@ public class DevicePinDraftValidator : AbstractValidator<DevicePinDraft>
 /// <summary>
 /// Yeni bir cihazin TEK bir telemetri kanali icin istemcinin urettigi kimlik.
 ///
-/// <b>Neden pinin icine gomulu degil.</b> "Ayni cihazda ayni kanal numarasi TEK
-/// bir <c>IoChannel</c>'dir" kurali (<c>IX_IoChannel_DeviceId_ChannelNumber</c>)
-/// boyle YAPISAL olarak tutarsiz ifade edilemez hale gelir. Her pin kendi
-/// <c>IoChannelId</c>'sini tasisaydi ayni kanali gosteren iki pinin ayni Id'yi
-/// tasidigi her gonderide ayrica dogrulanmak zorunda kalirdi.
+/// <b>Neden pinin icine gomulu degil.</b> "Ayni (yon, kanal numarasi) cifti TEK
+/// bir <c>IoChannel</c>'dir" kurali
+/// (<c>IX_IoChannel_CabinetId_Direction_ChannelNumber</c>) boyle YAPISAL olarak
+/// tutarsiz ifade edilemez hale gelir. Her pin kendi <c>IoChannelId</c>'sini
+/// tasisaydi ayni kanali gosteren iki pinin ayni Id'yi tasidigi her gonderide
+/// ayrica dogrulanmak zorunda kalirdi.
 ///
-/// Sunucu kanal numarasi kumesinin, sablon pinlerinin null olmayan farkli kanal
-/// numaralarina BIREBIR esit oldugunu dogrular.
+/// Sunucu iki sey dogrular: (1) gonderilen cift kumesi, sablon pinlerinin kanal
+/// tasiyan (yon, numara) ciftlerine BIREBIR esittir; (2) hicbir cift KABIN
+/// GENELINDE baska bir cihaz tarafindan kullanilmiyor.
 /// </summary>
 public class DeviceIoChannelDraft : IDto
 {
     /// <summary> Olusacak <c>IoChannel</c> satirinin birincil anahtari. </summary>
     public Guid Id { get; set; }
 
-    /// <summary> SCADA'nin kanali cozdugu numara; cihaz icinde benzersiz. </summary>
+    /// <summary>
+    /// Kanalin yonu. Anahtarin parcasi cunku kartta <c>IN1</c> ile <c>OUT1</c>
+    /// AYRI noktalardir.
+    ///
+    /// Yalnizca KIMLIK eslemesi icin gonderilir; kanalin gercek yonunu sunucu
+    /// yine sablon pininden kopyalar. Uyusmazlik 400 uretir.
+    /// </summary>
+    public EntityEnums.PinDirection Direction { get; set; }
+
+    /// <summary>
+    /// Kartin adres uzayindaki numara. Benzersizlik CIHAZDA DEGIL KABINDE:
+    /// kabin bir kontrol kartidir ve kartin adres uzayi duzdur.
+    /// </summary>
     public int ChannelNumber { get; set; }
 }
 
@@ -149,6 +164,7 @@ public class DeviceIoChannelDraftValidator : AbstractValidator<DeviceIoChannelDr
     public DeviceIoChannelDraftValidator()
     {
         RuleFor(v => v.Id).NotEqual(Guid.Empty).WithMessage("Kanal kimligi zorunlu");
+        RuleFor(v => v.Direction).IsInEnum().WithMessage("Gecersiz kanal yonu");
     }
-} 
+}
 #endregion

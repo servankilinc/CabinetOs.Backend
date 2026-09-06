@@ -106,7 +106,13 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             i.HasKey(i => i.Id);
             i.HasMany(i => i.Pins).WithOne(p => p.IoChannel).HasForeignKey(p => p.IoChannelId).OnDelete(DeleteBehavior.Restrict);
             i.HasMany(i => i.DeviceCommands).WithOne(d => d.IoChannel).HasForeignKey(d => d.IoChannelId).OnDelete(DeleteBehavior.Restrict);
-            i.HasIndex(i => new { i.DeviceId, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
+            // Kabin -> Restrict: Connection -> Cabinet ile ayni tercih.
+            i.HasOne(i => i.Cabinet).WithMany().HasForeignKey(i => i.CabinetId).OnDelete(DeleteBehavior.Restrict);
+            // BENZERSIZLIK CIHAZDA DEGIL KABINDE. Kabin BIR kontrol kartidir ve
+            // kartin adres uzayi duzdur: kart uzerinde "IN1" tektir. Yon de
+            // anahtarin parcasi, cunku kartta IN1 ile OUT1 AYRI noktalardir
+            // (5 baytlik cerceve girisi 'I', cikisi 'O' basligiyla ayirir).
+            i.HasIndex(i => new { i.CabinetId, i.Direction, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
             // ChannelEvent iliskisi Entity<ChannelEvent> blogunda tanimli — ayni
             // iliskiyi iki yerde yapilandirmak, ikisi ayrisirsa sessiz bir surpriz olur.
             i.Property(i => i.EventTriggerValue).HasMaxLength(32);

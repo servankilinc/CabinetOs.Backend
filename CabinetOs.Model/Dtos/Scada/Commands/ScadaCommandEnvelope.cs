@@ -12,11 +12,15 @@ namespace CabinetOs.Model.Dtos.Scada.Commands;
 /// CabinetOS'un SCADA'ya GONDERDIGI kumanda govdesi — ingest'in ters yonu.
 ///
 /// <b>Kimlikler ingest ile ayni dilde.</b> Guid tasimayiz: SCADA bizim
-/// Id'lerimizi bilmez, cihazi <c>externalCode</c> ve kanali <c>channelNumber</c>
-/// ile tanir (bkz. 07-scada-ingest.md). Bunun dogrudan bir sonucu var ve
-/// <c>DeviceCommandService</c> onu on kontrol olarak uyguluyor: <b>dis kodu
-/// olmayan bir cihaza kumanda gonderilemez</b> — paletten yeni birakilmis, henuz
-/// SCADA ile eslesmemis bir cihaz komut alamaz.
+/// Id'lerimizi bilmez. Kabin BIR kontrol kartidir ve kartin adres uzayi duzdur,
+/// dolayisiyla <c>cabinetId</c> + <c>pin</c> hedefi tek basina belirler — tipki
+/// ingest'in <c>"IN1"</c> gondermesi gibi, burada <c>"OUT5"</c> gider
+/// (bkz. 07-scada-ingest.md).
+///
+/// <b>Eski <c>externalCode</c> ve <c>channelNumber</c> alanlari kalkti.</b>
+/// Protokolde modul bayti yok; kart kimligi soketin kendisi. Buna bagli olarak
+/// <c>DeviceCommandService</c>'teki "dis kodu olmayan cihaza kumanda
+/// gonderilemez" on kosulu da kalkti — dayanagi kalmamisti.
 ///
 /// Tek istisna <see cref="CommandId"/>'dir: bizim satirimizin Id'sidir ve SCADA
 /// tarafinda TEKRAR TESPITI icin tasinir. Retry yapmiyoruz, ama sebeke seviyesinde
@@ -32,19 +36,26 @@ public class ScadaCommandEnvelope : IDto
 
     public Guid CabinetId { get; set; }
 
-    /// <summary><c>Device.ExternalCode</c> — SCADA'nin cihazi tanidigi kod.</summary>
-    public string ExternalCode { get; set; } = null!;
-
     /// <summary>
-    /// Hedef kanal. Tek kumanda turu (<c>SetOutput</c>) her zaman bir kanali
-    /// hedefledigi icin pratikte hep doludur; tipi <c>int?</c> birakildi, cunku
-    /// daraltmak SCADA'ya giden tel sozlesmesini degistirirdi.
+    /// Hedef nokta — <c>"OUT5"</c>, <c>"OUT17"</c> (LED). Ingest'in <c>"IN1"</c>
+    /// bicimiyle ayni dil; uretimi <c>ScadaPinAddress.Format</c>'ta.
+    ///
+    /// Kumanda tanim geregi bir CIKISI hedefler: giris yonlu kanal komut yolunda
+    /// zaten 400 ile reddediliyor. Kartta role ve LED ayni duz cikis uzayini
+    /// paylastigi icin (role 1-16, LED 17-24) numara tek basina yeterlidir.
     /// </summary>
-    public int? ChannelNumber { get; set; }
+    public string Pin { get; set; } = null!;
 
     public EntityEnums.DeviceCommandType CommandType { get; set; }
 
-    /// <summary>Telemetriyle ayni sekilde STRING; kanal basina tip yoktur.</summary>
+    /// <summary>
+    /// Telemetriyle ayni sekilde STRING; kanal basina tip yoktur.
+    ///
+    /// <b>Bu deger istemciden GELMEZ, sunucu uretir.</b> Istemci niyeti bildirir
+    /// (<c>turnOn</c>); NO/NC kutbuna gore telde gidecek <c>"1"</c>/<c>"0"</c>'i
+    /// <c>DeviceCommandService</c> cozer. SCADA'nin NO/NC'den haberi olmasina
+    /// gerek yok — ceviri bizde biter.
+    /// </summary>
     public string? Value { get; set; }
 
     /// <summary>Komutun SUNUCUDA olustugu an. SCADA'nin saatine guvenilmez.</summary>

@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 using CabinetOs.Business.Utils.ScadaCommandGateway;
 using CabinetOs.Business.Utils.DiagramNotifier;
+using Microsoft.Extensions.Logging;
 
 namespace CabinetOs.Business.Concrete;
 
@@ -28,6 +29,7 @@ public partial class DeviceCommandService : IDeviceCommandService
     private readonly IScadaCommandGateway _scadaCommandGateway;
     private readonly IDiagramNotifier _notifier;
     private readonly IHttpContextManager _httpContextManager;
+    private readonly ILogger<DeviceCommandService> _logger;
 
     public DeviceCommandService(
         IUnitOfWork unitOfWork,
@@ -35,7 +37,8 @@ public partial class DeviceCommandService : IDeviceCommandService
         IMapper mapper,
         IScadaCommandGateway scadaCommandGateway,
         IDiagramNotifier notifier,
-        IHttpContextManager httpContextManager)
+        IHttpContextManager httpContextManager,
+        ILogger<DeviceCommandService> logger)
     {
         _unitOfWork = unitOfWork;
         _validationService = validationService;
@@ -43,6 +46,7 @@ public partial class DeviceCommandService : IDeviceCommandService
         _scadaCommandGateway = scadaCommandGateway;
         _notifier = notifier;
         _httpContextManager = httpContextManager;
+        _logger = logger;
     }
 
     public async Task<Result<DeviceCommand>> GetAsync(Expression<Func<DeviceCommand, bool>> where, CancellationToken cancellationToken = default)

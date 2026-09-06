@@ -4,22 +4,24 @@ using FluentValidation;
 
 namespace CabinetOs.Model.Dtos.Scada.Commands;
 
-// DIKKAT: `using static EntityEnums` BURADA CALISMAZ. `CabinetOs.Model.Dtos`
-// altinda `DeviceStatus` adinda bir AD ALANI var (lookup entity'sinin DTO'lari);
-// kisa ad once ona cozuluyor. Enum bu yuzden acikca nitelenir.
-
 /// <summary>
-/// <c>POST /api/Scada/ingest</c> govdesi — SCADA'dan BIZE push edilen telemetri.
+/// <c>POST /api/Scada/ingest</c> govdesi — SCADA'dan BIZE push edilen TEK okuma.
 ///
-/// Yon onemli: bu sistem sahayla Modbus konusmaz, SCADA ile HTTP uzerinden
-/// {modul, kanal, deger} alisverisi yapar (bkz. EntityEnums.cs). Deger cekmeyiz,
-/// SCADA gonderir.
+/// <b>Neden tek okuma, neden toplu degil.</b> Kart olay guduml&#252;d&#252;r: bir pin
+/// degistiginde 5 baytlik tek bir cerceve gonderir
+/// (<c>[baslik][pin no][deger][zaman][bitis]</c>). Toplu bir paket diye bir sey
+/// hicbir zaman gelmez, dolayisiyla <c>devices[] -&gt; channels[]</c> seklindeki
+/// eski govde sahada karsiligi olmayan bir yapiydi.
 ///
-/// <b>Kimlik govdedeki <see cref="CabinetId"/>.</b> Uc <c>[AllowAnonymous]</c>'tur
-/// cunku SCADA'nin JWT'si yoktur. Bu bir sir DEGILDIR — kabin Id'si her diyagram
-/// URL'inde gorunur — dolayisiyla kabini bir kez gormus herkes o kabin adina sahte
-/// telemetri yazabilir. Sertlestirme (serialize edilmeyen ikinci bir
-/// <c>Cabinet.IngestKey</c> kolonu) planda OPSIYONEL isaretli ve yapilmadi;
+/// <b>Kimlik yalnizca <see cref="CabinetId"/>.</b> Kabin BIR kontrol kartidir;
+/// kartin adres uzayi duzdur, dolayisiyla kabin + pin bir noktayi tek basina
+/// belirler. Eski <c>externalCode</c> alani kalkti: protokolde modul bayti yok,
+/// kart kimligi soketin kendisidir.
+///
+/// Uc <c>[AllowAnonymous]</c>'tur cunku SCADA'nin JWT'si yoktur. Bu bir sir
+/// DEGILDIR — kabin Id'si her diyagram URL'inde gorunur — dolayisiyla kabini bir
+/// kez gormus herkes o kabin adina sahte telemetri yazabilir. Sertlestirme
+/// (serialize edilmeyen ikinci bir <c>Cabinet.IngestKey</c> kolonu) yapilmadi;
 /// ingest ucu guvenilmeyen bir aga acilmadan once yapilmalidir.
 ///
 /// Sozlesme: <c>docs/api-contract/07-scada-ingest.md</c>
@@ -29,84 +31,70 @@ public class ScadaIngestRequest : IDto
     public Guid CabinetId { get; set; }
 
     /// <summary>
+    /// Okumanin geldigi nokta — <c>"IN1"</c>, <c>"IN7"</c>. Ayristirma
+    /// <see cref="ScadaPinAddress"/>'te.
+    ///
+    /// <b>Bu turda YALNIZCA giris kabul edilir.</b> Cikis pinlerinden bilgi
+    /// gelmez, onlara yalnizca kumanda gider — bir roleyi biz surdugumuzde donen
+    /// deger saha olayi degil kendi komutumuzun yankisidir ve kaydi zaten
+    /// <c>DeviceCommand</c>'dadir. <c>"OUT5"</c> gibi bir adres sozdizimsel olarak
+    /// TANINIR ama 400 ile reddedilir: bu "tanimadigim referans" degil, anlamca
+    /// gecersiz bir istektir ve sessizce atlamak yapilandirma hatasini gorunmez
+    /// kilardi.
+    /// </summary>
+    public string Pin { get; set; } = null!;
+
+    /// <summary>
+    /// Deger STRING olarak tasinir ve string olarak saklanir
+    /// (<c>IoChannel.CurrentValue</c>). Kanal basina tip yoktur: bir role icin
+    /// <c>"1"</c>, bir sicaklik icin <c>"23.5"</c> gelebilir. Yorumlama gosterim
+    /// katmaninin isidir.
+    ///
+    /// <c>null</c> gecerlidir ve "kanal var ama okunamadi" demektir; <c>"0"</c>
+    /// ile ayni sey DEGILDIR.
+    /// </summary>
+    public string? Value { get; set; }
+
+    /// <summary>
     /// Olcumun SCADA tarafindaki zamani. Bilgi amaclidir: yazilan
     /// <c>ValueUpdatedAt</c> / <c>LastSeen</c> alanlari SUNUCU saatinden gelir,
     /// cunku SCADA'nin saati kaymis olabilir ve bayat cihaz supurucusu
     /// (<c>StaleDeviceSweeper</c>) o alanlara gore karar veriyor — kaymis bir saat
-    /// canli bir kabini kalicı olarak Offline gosterebilirdi.
+    /// canli bir kabini kalici olarak Offline gosterebilirdi.
     /// </summary>
     public DateTime? TimestampUtc { get; set; }
-
-    public List<ScadaDeviceReading> Devices { get; set; } = [];
-}
-
-/// <summary>Tek bir modulun okumasi.</summary>
-public class ScadaDeviceReading
-{
-    /// <summary>
-    /// <c>Device.ExternalCode</c> — cihazin SCADA tarafindaki kimligi. Guid degil,
-    /// cunku SCADA bizim Id'lerimizi bilmez; eslesme kabin icinde benzersiz olan
-    /// bu kod uzerinden yapilir (IX_Device_CabinetId_ExternalCode).
-    /// </summary>
-    public string ExternalCode { get; set; } = null!;
-
-    /// <summary>Null = "dokunma". Cihazin mevcut durumu korunur.</summary>
-    public EntityEnums.DeviceStatus? StatusId { get; set; }
-
-    public List<ScadaChannelReading> Channels { get; set; } = [];
-}
-
-/// <summary>Tek bir kanalin degeri.</summary>
-public class ScadaChannelReading
-{
-    public int ChannelNumber { get; set; }
-
-    /// <summary>
-    /// Deger STRING olarak tasinir ve string olarak saklanir
-    /// (<c>IoChannel.CurrentValue</c>). Kanal basina tip yoktur: ayni ingest
-    /// govdesinde bir role icin <c>"1"</c>, bir sicaklik icin <c>"23.5"</c>
-    /// gelebilir. Yorumlama gosterim katmaninin isidir.
-    /// </summary>
-    public string? Value { get; set; }
 }
 
 public class ScadaIngestRequestValidator : AbstractValidator<ScadaIngestRequest>
 {
     /// <summary>
-    /// Tek govdede kabul edilen en fazla cihaz / kanal. Sinir yoksa tek bir istek
-    /// sinirsiz bellek ayirtabilir; uc kimlik dogrulamasiz oldugu icin bu bir
-    /// hizmet disi birakma yoludur.
+    /// Govde 256 karaktere kadar deger kabul eder. Olay kolonu (<c>ChannelEvent.Value</c>)
+    /// 32'dir; asan deger anlik degeri yine gunceller, kalici olay uretmez.
     /// </summary>
-    private const int MaxDevices = 500;
-    private const int MaxChannelsPerDevice = 512;
+    private const int MaxValueLength = 256;
 
     public ScadaIngestRequestValidator()
     {
         RuleFor(v => v.CabinetId).NotEmpty().WithMessage("cabinetId zorunlu");
 
-        RuleFor(v => v.Devices).NotNull().WithMessage("devices zorunlu");
-        RuleFor(v => v.Devices).Must(d => d.Count <= MaxDevices)
-            .WithMessage($"Tek gonderide en fazla {MaxDevices} cihaz olabilir");
+        RuleFor(v => v.Pin).NotEmpty().WithMessage("pin zorunlu");
 
-        RuleForEach(v => v.Devices).ChildRules(device =>
-        {
-            device.RuleFor(d => d.ExternalCode).NotEmpty().WithMessage("externalCode zorunlu");
-            device.RuleFor(d => d.ExternalCode).MaximumLength(64).WithMessage("externalCode en fazla 64 karakter olabilir");
-            // Null gecerli ("dokunma"); dolu ise tanimli bir deger olmali.
-            device.RuleFor(d => d.StatusId).IsInEnum().When(d => d.StatusId.HasValue)
-                .WithMessage("Gecersiz cihaz durumu");
-            device.RuleFor(d => d.Channels).NotNull().WithMessage("channels zorunlu");
-            device.RuleFor(d => d.Channels).Must(c => c.Count <= MaxChannelsPerDevice)
-                .WithMessage($"Cihaz basina en fazla {MaxChannelsPerDevice} kanal olabilir");
+        // Ayristirilabilirlik ve YON ayri ayri raporlanir: "IN0" ile "OUT5"
+        // ikisi de 400 dondurur ama sebepleri farklidir ve entegrasyon yapan
+        // kisinin hangisiyle karsilastigini bilmesi gerekir.
+        RuleFor(v => v.Pin)
+            .Must(pin => ScadaPinAddress.TryParse(pin, out _))
+            .When(v => !string.IsNullOrWhiteSpace(v.Pin))
+            .WithMessage("Gecersiz pin adresi. Beklenen bicim: IN1, IN2, ...");
 
-            device.RuleForEach(d => d.Channels).ChildRules(channel =>
-            {
-                channel.RuleFor(c => c.ChannelNumber).GreaterThan(0)
-                    .WithMessage("channelNumber sifirdan buyuk olmali");
-                // Deger NULL olabilir: "kanal var ama okunamadi" mesru bir durum.
-                channel.RuleFor(c => c.Value).MaximumLength(256)
-                    .WithMessage("value en fazla 256 karakter olabilir");
-            });
-        });
+        RuleFor(v => v.Pin)
+            .Must(pin => !ScadaPinAddress.TryParse(pin, out var address)
+                         || address.Direction == EntityEnums.PinDirection.Input)
+            .When(v => !string.IsNullOrWhiteSpace(v.Pin))
+            .WithMessage("Cikis pininden telemetri kabul edilmiyor; yalnizca giris pinleri (IN...) veri gonderir");
+
+        // Deger NULL olabilir: "kanal var ama okunamadi" mesru bir durum.
+        RuleFor(v => v.Value).MaximumLength(MaxValueLength)
+            .WithMessage($"value en fazla {MaxValueLength} karakter olabilir");
     }
 }

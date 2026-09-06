@@ -83,7 +83,7 @@ public sealed class CaptureFileStore : ICaptureFileStore
         }
     }
 
-    public void TryDeleteDirectory(string fullPath)
+    public void TryDeleteTempDirectory(string fullPath)
     {
         try
         {

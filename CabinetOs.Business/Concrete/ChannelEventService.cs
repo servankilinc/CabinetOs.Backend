@@ -20,31 +20,21 @@ namespace CabinetOs.Business.Concrete;
 /// Kanal olaylarinin okuma yolu. 
 /// SCADA telemetrisinin yazildigi tek yer.
 ///
-/// <b>Sicak yol.</b> Kabin basina saniyede birden fazla ingest bekleniyor; bu
-/// yuzden: tek <c>SaveChangesAsync</c>, TRANSACTION YOK (tek kabin, idempotent
-/// yazma — yarim kalan bir ingest bir sonrakiyle duzelir), ve DEGERI DEGISMEYEN
-/// KANAL ICIN HIC YAZMA YOK.
+/// <b>Sicak yol.</b> Kart olay gudumlu tek cerceve gonderiyor; bu yuzden:
+/// istek basina TEK okuma, tek <c>SaveChangesAsync</c>, TRANSACTION YOK (tek
+/// kanal, idempotent yazma — yarim kalan bir ingest bir sonrakiyle duzelir), ve
+/// DEGERI DEGISMEYEN KANAL ICIN HIC YAZMA YOK.
 ///
 /// <b>Basarili ingest GOVDESIZ 200 doner.</b> Eskiden bir sayac seti donuyordu
-/// (<c>accepted/changed/skipped/eventsRecorded</c>); muhatabi yanlisti. SCADA kac
-/// okumanin islendigiyle ilgilenmez — sahada tanimsiz bir modul cikmasini tespit
+/// (<c>accepted/changed/skipped/eventsRecorded</c>); muhatabi yanlisti. SCADA
+/// islenip islenmedigiyle ilgilenmez — sahada tanimsiz bir pin cikmasini tespit
 /// etmesi gereken taraf BIZ'iz ve bunun yeri istegin yaniti degil <c>Warning</c>
-/// log'udur. Sayaclar o log satirinin icinde, yalnizca atlanan varken yazilir.
+/// log'udur.
 ///
 /// Sozlesme: <c>docs/api-contract/07-scada-ingest.md</c> + <c>09-realtime.md</c>
 /// </summary>
 public class ChannelEventService : IChannelEventService
 {
-    /// <summary>
-    /// Log satirina yazilacak tanimsiz referans ORNEGI ust siniri — liste basina
-    /// ayri ayri uygulanir.
-    ///
-    /// Yanlis yapilandirilmis bir SCADA yuzlerce bilinmeyen referans
-    /// gonderebilir; kirpma olmasaydi TEK bir log satiri megabaytlara cikardi.
-    /// Sayaclar kirpilmaz, yalnizca ornek listeleri kirpilir.
-    /// </summary>
-    private const int MaxLoggedRefs = 50;
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidationService _validationService;
     private readonly IDiagramNotifier _notifier;
@@ -99,6 +89,15 @@ public class ChannelEventService : IChannelEventService
         if (!validationResult.IsValid)
             return Result.Validation(validationResult.Failures, description: "Validation failed for ScadaIngestRequest");
 
+        // Dogrulama gectiyse ayristirma da gecer — ikisi AYNI ayristiriciyi
+        // kullaniyor. Yine de sessizce varsaymiyoruz: TryParse'in sonucu
+        // kullanilmadan once kontrol ediliyor ki iki taraf ileride ayrisirsa
+        // bu, gizli bir yanlis okuma degil gorunur bir 400 olsun.
+        if (!ScadaPinAddress.TryParse(request.Pin, out var pin))
+            return Result.Validation(
+                new Dictionary<string, string[]> { ["Pin"] = ["Gecersiz pin adresi"] },
+                description: "Invalid pin address");
+
         var cabinet = await _unitOfWork.Cabinets.GetAsync(
             where: c => c.Id == request.CabinetId && c.IsActive,
             tracking: true,
@@ -115,69 +114,60 @@ public class ChannelEventService : IChannelEventService
                 new Dictionary<string, string[]> { ["CabinetId"] = ["Bu kabinde SCADA kapali"] },
                 description: "SCADA disabled for cabinet");
 
-        // Cozumleme sozlukleri. Kod karsilastirmasi BUYUK/KUCUK HARF DUYARSIZ,
-        // cunku IX_Device_CabinetId_ExternalCode SQL Server collation'i altinda
-        // oyle davraniyor: "mod-01" ve "MOD-01" veritabaninda ayni satirdir,
-        // .NET'in ordinal karsilastirmasi ise onlari ayirir ve ayni cihaz
-        // "taninmadi" diye atlanirdi.
-        var devices = await _unitOfWork.Devices.GetAllAsync(
-            where: d => d.CabinetId == cabinet.Id && d.IsActive && d.ExternalCode != null,
-            tracking: true,
-            cancellationToken: cancellationToken) ?? [];
-
-        var deviceByCode = new Dictionary<string, Device>(StringComparer.OrdinalIgnoreCase);
-        foreach (var device in devices)
-            deviceByCode[device.ExternalCode!] = device;
-
-        var deviceIds = devices.Select(d => d.Id).ToList();
-        var channels = deviceIds.Count == 0
-            ? []
-            : await _unitOfWork.IoChannels.GetAllAsync(
-                where: c => deviceIds.Contains(c.DeviceId) && c.IsEnabled,
-                tracking: true,
-                cancellationToken: cancellationToken) ?? [];
-
-        var channelByRef = channels.ToDictionary(c => (c.DeviceId, c.ChannelNumber));
-
         var now = DateTime.UtcNow;
-        var channelChanges = new List<ChannelValueChange>();
-        var statusChanges = new List<DeviceStatusChange>();
 
-        // Sayaclar artik YANITA degil LOG SATIRINA gidiyor. Yalnizca atlanan
-        // varken yazildiklari icin, saglikli bir sahada hicbir sey loglanmaz;
-        // bir sorun varken de "kac tanesi islendi" baglami elde kalir.
-        int accepted = 0, changed = 0, eventsRecorded = 0;
-        var skipTally = new SkipTally();
+        // KANAL TEK SORGUDA, JOIN'SIZ COZULUR. Kabin bir kontrol kartidir ve
+        // IoChannel.CabinetId denormalize tutuldugu icin adres dogrudan
+        // benzersiz indekse dusuyor (IX_IoChannel_CabinetId_Direction_ChannelNumber).
+        // Eskiden burada kabinin BUTUN cihazlari yuklenip bir sozluk kuruluyordu;
+        // tek okumali ingest cok daha sik geldigi icin o maliyet artik kabul
+        // edilemezdi.
+        var channel = await _unitOfWork.IoChannels.GetAsync(
+            where: c => c.CabinetId == cabinet.Id
+                     && c.Direction == pin.Direction
+                     && c.ChannelNumber == pin.ChannelNumber
+                     && c.IsEnabled,
+            tracking: true,
+            cancellationToken: cancellationToken);
 
-        // Olayin SAHADA gerceklestigi an. SCADA gondermediyse kendi saatimize
-        // duseriz — iki kolonun esit olmasi "damga gelmedi" demektir ve bu bilgi
-        // tek bir zaman damgasi saklansaydi bir daha geri getirilemezdi.
-        var occurredAt = request.TimestampUtc ?? now;
-        var events = new List<ChannelEvent>();
-
-        foreach (var reading in request.Devices)
+        if (channel == null)
         {
-            if (!deviceByCode.TryGetValue(reading.ExternalCode, out var device))
-            {
-                // Tanimayan referans TUM istegi dusurmez: sahada bir modul
-                // eklendiginde o kabinin butun telemetrisi durmamali.
-                //
-                // Cihaz cozulemedigi icin kanallari da cozulemez; SAYACA hepsi
-                // ayri ayri girer (cihaz 1 + her kanali 1), ama log satirinda
-                // tek bir "MOD-09(3 kanal)" girdisi olarak gorunurler — 512
-                // kanalli tanimsiz bir cihaz aksi halde tek basina 513 ornek
-                // uretir ve satiri okunmaz hale getirirdi.
-                skipTally.AddDevice(reading.ExternalCode, reading.Channels.Count);
-                continue;
-            }
+            // K7: tanimadigimiz referans istegi DUSURMEZ. Sahada bir pin
+            // baglandiginda o kabinin butun telemetrisinin durmasi, tek bir
+            // bilinmeyen pinden cok daha kotudur.
+            //
+            // Ama sessiz atlama tespit edilemezse yanlis yapilandirilmis bir
+            // SCADA aylarca 200 alip hicbir sey yazmaz. Yanit govdesiz oldugu
+            // icin bu log satiri, atlamayi gorunur kilan TEK seydir.
+            //
+            // Bastirma/deduplikasyon YOK (bilincli): sorun cikarsa care, pin
+            // basina bastirmayi IDistributedCache ile eklemektir.
+            _logger.LogWarning(
+                "Kabin {CabinetId}: {Pin} pini tanimsiz (ya da devre disi); telemetri atlandi.",
+                cabinet.Id,
+                pin.ToString());
 
+            return Result.Success();
+        }
+
+        var device = await _unitOfWork.Devices.GetAsync(
+            where: d => d.Id == channel.DeviceId,
+            tracking: true,
+            cancellationToken: cancellationToken);
+
+        var statusChanges = new List<DeviceStatusChange>();
+        bool deviceStatusChanged = false;
+
+        if (device != null)
+        {
             var previousStatus = device.DeviceStatusId;
-            var nextStatus = ResolveStatus(previousStatus, reading.StatusId);
+            var nextStatus = ResolveStatus(previousStatus);
 
             device.LastSeen = now;
             if (nextStatus != previousStatus)
             {
                 device.DeviceStatusId = nextStatus;
+                deviceStatusChanged = true;
                 statusChanges.Add(new DeviceStatusChange
                 {
                     DeviceId = device.Id,
@@ -185,68 +175,63 @@ public class ChannelEventService : IChannelEventService
                     LastSeen = now
                 });
             }
+        }
 
-            foreach (var channelReading in reading.Channels)
+        var channelChanges = new List<ChannelValueChange>();
+        ChannelEvent? channelEvent = null;
+
+        // DEGISMEYEN KANALA HIC DOKUNULMAZ. Iki kazanc: EF bu satiri UPDATE
+        // listesine hic almaz, ve degismeyen bir deger icin yayin uretilmez —
+        // seğiren bir sensor aksi halde her cerceve icin bir yayin dogururdu.
+        if (!string.Equals(channel.CurrentValue, request.Value, StringComparison.Ordinal))
+        {
+            var previousValue = channel.CurrentValue;
+
+            channel.CurrentValue = request.Value;
+            channel.ValueUpdatedAt = now;
+
+            channelChanges.Add(new ChannelValueChange
             {
-                if (!channelByRef.TryGetValue((device.Id, channelReading.ChannelNumber), out var channel))
-                {
-                    skipTally.AddChannel(reading.ExternalCode, channelReading.ChannelNumber);
-                    continue;
-                }
+                IoChannelId = channel.Id,
+                DeviceId = channel.DeviceId,
+                ChannelNumber = channel.ChannelNumber,
+                Value = request.Value,
+                UpdatedAt = now
+            });
 
-                accepted++;
-
-                // DEGISMEYEN KANALA HIC DOKUNULMAZ. Iki kazanc: EF bu satiri
-                // UPDATE listesine hic almaz, ve degismeyen bir deger icin
-                // yayin uretilmez — 500 kanalli bir kabinde saniyede bir ingest
-                // aksi halde saniyede 500 gereksiz guncelleme yayardi.
-                if (string.Equals(channel.CurrentValue, channelReading.Value, StringComparison.Ordinal))
-                    continue;
-
-                var previousValue = channel.CurrentValue;
-
-                channel.CurrentValue = channelReading.Value;
-                channel.ValueUpdatedAt = now;
-                changed++;
-
-                channelChanges.Add(new ChannelValueChange
+            // Anlik deger her zaman guncellenir; KALICI OLAY ise ayri bir
+            // karardir ve cok daha dar bir kumeye yazilir.
+            if (ShouldRecordEvent(channel, request.Value))
+            {
+                // Olayin SAHADA gerceklestigi an. SCADA gondermediyse kendi
+                // saatimize duseriz — iki kolonun esit olmasi "damga gelmedi"
+                // demektir ve bu bilgi tek bir zaman damgasi saklansaydi bir
+                // daha geri getirilemezdi.
+                channelEvent = new ChannelEvent
                 {
                     IoChannelId = channel.Id,
-                    DeviceId = device.Id,
-                    ChannelNumber = channel.ChannelNumber,
-                    Value = channelReading.Value,
-                    UpdatedAt = now
-                });
+                    CabinetId = cabinet.Id,
+                    Value = request.Value!,
+                    PreviousValue = previousValue,
+                    OccurredAtUtc = request.TimestampUtc ?? now,
+                    ReceivedAtUtc = now
+                };
 
-                // Anlik deger her zaman guncellenir; KALICI OLAY ise ayri bir
-                // karardir ve cok daha dar bir kumeye yazilir.
-                if (ShouldRecordEvent(channel, channelReading.Value))
-                {
-                    events.Add(new ChannelEvent
-                    {
-                        IoChannelId = channel.Id,
-                        CabinetId = cabinet.Id,
-                        Value = channelReading.Value!,
-                        PreviousValue = previousValue,
-                        OccurredAtUtc = occurredAt,
-                        ReceivedAtUtc = now
-                    });
-                    eventsRecorded++;
-                }
+                // Olay kanal guncellemesiyle AYNI SaveChanges'te iner. Ayri bir
+                // kaydetme olsaydi ikisi arasinda kalan bir hata, degeri
+                // yazilmis ama olayi yazilmamis bir kanal birakirdi.
+                _unitOfWork.ChannelEvents.Add(channelEvent);
             }
         }
 
-        // Kabin durumu = cihazlarinin EN KOTUSU.
-        var previousCabinetStatus = cabinet.DeviceStatusId;
-        cabinet.DeviceStatusId = WorstStatus(devices);
+        // KABIN DURUMU YALNIZCA GEREKTIGINDE HESAPLANIR. Cihazin durumu
+        // degismediyse kabin durumu da degisemez; her cerceve icin kabinin butun
+        // cihazlarini okumak, tek okumali ingest'in sikliginda savunulamazdi.
+        if (deviceStatusChanged)
+            cabinet.DeviceStatusId = await ComputeCabinetStatusAsync(cabinet.Id, device!, cancellationToken);
+
         cabinet.LastSeen = now;
         cabinet.ScadaLastIngestAt = now;
-
-        // Olaylar kanal guncellemeleriyle AYNI SaveChanges'te iner. Ayri bir
-        // kaydetme olsaydi ikisi arasinda kalan bir hata, degeri yazilmis ama
-        // olayi yazilmamis (ya da tersi) bir kanal birakirdi.
-        foreach (var channelEvent in events)
-            _unitOfWork.ChannelEvents.Add(channelEvent);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -260,7 +245,7 @@ public class ChannelEventService : IChannelEventService
 
         // Kabin olayi HER ingest'te gider (durum degismese bile): govdesindeki
         // scadaLastIngestAt, arayuzdeki "son veri" tazeligi gostergesinin tek
-        // kaynagi. Kabin basina saniyede bir olay, kanal basina degil.
+        // kaynagi.
         await _notifier.CabinetStatusChangedAsync(new CabinetStatusChange
         {
             CabinetId = cabinet.Id,
@@ -269,31 +254,25 @@ public class ChannelEventService : IChannelEventService
             ScadaLastIngestAt = cabinet.ScadaLastIngestAt
         }, cancellationToken);
 
-        _ = previousCabinetStatus; // durum farki bugun kullanilmiyor; olay kosulsuz gidiyor
-
-        // Sessiz atlamayi gorunur kilan TEK sey. Yanit gövdesizdir; SCADA kac
-        // okumanin islendigiyle ilgilenmez, sahada tanimsiz bir modul cikmasini
-        // tespit etmesi gereken taraf biziz.
-        //
-        // Bastirma/deduplikasyon YOK (bilincli): yanlis yapilandirilmis bir
-        // kabin, ingest sikligi neyse o kadar satir yazar. Sorun cikarsa care,
-        // referans basina bastirmayi IDistributedCache ile eklemektir.
-        if (skipTally.Total > 0)
-        {
-            _logger.LogWarning(
-                "Kabin {CabinetId}: {SkippedCount} telemetri referansi tanimsiz. " +
-                "Tanimsiz cihazlar: {UnknownDevices}. Tanimsiz kanallar: {UnknownChannels}. " +
-                "accepted={Accepted} changed={Changed} eventsRecorded={EventsRecorded}",
-                cabinet.Id,
-                skipTally.Total,
-                skipTally.DescribeDevices(),
-                skipTally.DescribeChannels(),
-                accepted,
-                changed,
-                eventsRecorded);
-        }
-
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Kabin rozeti: cihaz durumlarinin en kotusu.
+    ///
+    /// Yalnizca DURUM alani okunuyor (tam varlik degil) — burasi sicak yol ve
+    /// hesaplama icin cihazlarin baska hicbir alani gerekmiyor. Az once
+    /// degistirdigimiz cihazin durumu sorguya dahil edilmez: veritabaninda hala
+    /// eski degeri duruyor, dolayisiyla yeni degeri ayrica eklenir.
+    /// </summary>
+    private async Task<int?> ComputeCabinetStatusAsync(Guid cabinetId, Device changedDevice, CancellationToken cancellationToken)
+    {
+        var statuses = await _unitOfWork.Devices.GetAllAsync(
+            select: d => d.DeviceStatusId,
+            where: d => d.CabinetId == cabinetId && d.IsActive && d.Id != changedDevice.Id,
+            cancellationToken: cancellationToken) ?? [];
+
+        return WorstStatus([.. statuses, changedDevice.DeviceStatusId]);
     }
 
     public async Task<int> SweepStaleDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default)
@@ -354,7 +333,7 @@ public class ChannelEventService : IChannelEventService
         foreach (var cabinet in cabinets)
         {
             if (devicesByCabinet.TryGetValue(cabinet.Id, out var cabinetDevices))
-                cabinet.DeviceStatusId = WorstStatus(cabinetDevices);
+                cabinet.DeviceStatusId = WorstStatus(cabinetDevices.Select(d => d.DeviceStatusId));
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -419,60 +398,21 @@ public class ChannelEventService : IChannelEventService
     }
 
     /// <summary>
-    /// Bir ingest istegi boyunca cozumlenemeyen referanslari toplar.
-    ///
-    /// Cihaz ve kanal AYRI listelerde tutulur: tanimsiz bir cihazin butun
-    /// kanallari da tanimsizdir, ama onlari tek tek yazmak log satirini
-    /// sisirmekten baska bir sey yapmaz — cihaz girdisi kanal sayisini kendi
-    /// icinde tasir. <see cref="Total"/> ise eski davranisi korur ve her ikisini
-    /// de tek tek sayar (cihaz 1 + her kanali 1).
-    /// </summary>
-    private sealed class SkipTally
-    {
-        private readonly List<string> _devices = [];
-        private readonly List<string> _channels = [];
-
-        /// <summary>Atlanan referans sayisi — ORNEK listeleri kirpilsa bile TAM.</summary>
-        public int Total { get; private set; }
-
-        public void AddDevice(string externalCode, int channelCount)
-        {
-            Total += 1 + channelCount;
-            if (_devices.Count < MaxLoggedRefs)
-                _devices.Add($"{externalCode}({channelCount} kanal)");
-        }
-
-        public void AddChannel(string externalCode, int channelNumber)
-        {
-            Total++;
-            if (_channels.Count < MaxLoggedRefs)
-                _channels.Add($"{externalCode}/ch:{channelNumber}");
-        }
-
-        public string DescribeDevices() => Describe(_devices);
-        public string DescribeChannels() => Describe(_channels);
-
-        // Bos liste "yok" yazar: log satirinda bos bir alan, "hic yoktu" ile
-        // "yazilmayi unuttuk" arasinda ayrim birakmazdi.
-        private static string Describe(List<string> refs) =>
-            refs.Count == 0 ? "yok" : string.Join(", ", refs);
-    }
-
-    /// <summary>
     /// Cihazin yeni durumu.
     ///
-    /// SCADA bir durum bildirdiyse o kazanir. Bildirmediyse (<c>null</c> =
-    /// "dokunma") kural sudur: <b>supurucu Offline'a ceker, ingest geri getirir.</b>
-    /// Cihazdan okuma geldiyse cihaz yasiyordur; ondan haber alinmadigi icin
-    /// Offline'a cekilmis bir kaydi oylece birakmak, telemetri yeniden aksa bile
-    /// kabini sonsuza dek olu gostermek olurdu.
+    /// Kural tek: <b>supurucu Offline'a ceker, ingest geri getirir.</b> Cihazdan
+    /// okuma geldiyse cihaz yasiyordur; ondan haber alinmadigi icin Offline'a
+    /// cekilmis bir kaydi oylece birakmak, telemetri yeniden aksa bile kabini
+    /// sonsuza dek olu gostermek olurdu.
     ///
-    /// <c>Warning</c>/<c>Critical</c>/<c>Maintenance</c> ise SCADA'nin BILEREK
-    /// yazdigi durumlardir; sirf paket geldi diye Online'a cevrilmezler.
+    /// <b>SCADA artik durum BILDIRMIYOR.</b> Eski govdede bir <c>statusId</c>
+    /// alani vardi ve doluysa aynen yazilirdi; kartin protokolunde boyle bir
+    /// kavram olmadigi icin kaldirildi. <c>Warning</c>/<c>Critical</c>/
+    /// <c>Maintenance</c> bu uctan yazilamaz — yazilmislarsa (baska bir yoldan)
+    /// oldugu gibi korunurlar, sirf cerceve geldi diye Online'a cevrilmezler.
     /// </summary>
-    private static int? ResolveStatus(int? current, DeviceStatus? reported)
+    private static int? ResolveStatus(int? current)
     {
-        if (reported.HasValue) return (int)reported.Value;
         if (current == null || current == (int)DeviceStatus.Offline) return (int)DeviceStatus.Online;
         return current;
     }
@@ -487,14 +427,14 @@ public class ChannelEventService : IChannelEventService
     /// Durumu <c>null</c> olan cihaz (hic telemetri alinmamis) hesaba KATILMAZ;
     /// hicbir cihazin durumu yoksa kabin durumu da <c>null</c> kalir.
     /// </summary>
-    private static int? WorstStatus(IEnumerable<Device> devices)
+    private static int? WorstStatus(IEnumerable<int?> statuses)
     {
         int? worst = null;
         int worstRank = -1;
 
-        foreach (var device in devices)
+        foreach (var candidate in statuses)
         {
-            if (device.DeviceStatusId is not int status) continue;
+            if (candidate is not int status) continue;
             int rank = SeverityRank(status);
             if (rank <= worstRank) continue;
             worstRank = rank;

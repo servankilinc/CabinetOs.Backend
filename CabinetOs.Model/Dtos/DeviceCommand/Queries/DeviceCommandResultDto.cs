@@ -32,8 +32,32 @@ public class DeviceCommandResultDto : IDto
 
     public DeviceCommandType CommandType { get; set; }
 
-    /// <summary>Gonderilen payload (<c>{"value":"1"}</c>).</summary>
+    /// <summary>
+    /// Gonderilen payload — <c>{"turnOn":true,"value":"0","polarity":2}</c>.
+    /// Hem niyet hem teldeki deger yazilir; ayrintisi
+    /// <c>DeviceCommandService.CommandPayload</c>'ta.
+    /// </summary>
     public string? PayloadJson { get; set; }
+
+    /// <summary>
+    /// Telde SCADA'ya giden ham deger (<c>"1"</c> / <c>"0"</c>).
+    ///
+    /// Istemci artik niyet gonderiyor (<c>turnOn</c>), degeri sunucu cozuyor;
+    /// bu alan olmasaydi arayuz sahaya ne gittigini gosteremezdi.
+    /// </summary>
+    public string? SentValue { get; set; }
+
+    /// <summary>
+    /// Cozulen kontak kutbu: <c>NO</c>, <c>NC</c>, ya da kutup sorusu olmayan
+    /// kanallarda (LED, duz dijital cikis) <c>null</c>.
+    ///
+    /// <b>Neden govdede.</b> Kutup, kanalin pinlerine ve KABLOLAMAYA bakilarak
+    /// cozuluyor; yani kabloyu degistirmek ayni niyetin ters bayt uretmesine yol
+    /// acabilir. Arayuz "NC olarak yorumlandi" diyebilsin diye sonuc geri
+    /// bildiriliyor — sessiz kalsaydi bu, fark edilmesi en zor hata sinifi
+    /// olurdu.
+    /// </summary>
+    public PinFunction? ResolvedPolarity { get; set; }
 
     /// <summary>
     /// SCADA'nin cevabinin sonucu. <c>Sent</c> BU GOVDEDE GORULMEZ: satir ancak

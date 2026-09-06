@@ -40,5 +40,5 @@ public interface ICaptureFileStore
     /// Medya gecidinin klip icin kullandigi gecici klasoru siler. Hata FIRLATMAZ:
     /// temizlik basarisizligi, tamamlanmis bir cekimi basarisiz gostermemeli.
     /// </summary>
-    void TryDeleteDirectory(string fullPath);
+    void TryDeleteTempDirectory(string fullPath);
 }

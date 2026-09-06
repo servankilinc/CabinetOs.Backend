@@ -162,7 +162,7 @@ public partial class CameraService
             if (pathCreated)
                 await _mediaGateway.DeletePathAsync(pathName, CancellationToken.None);
 
-            _captureFileStore.TryDeleteDirectory(tempFolder);
+            _captureFileStore.TryDeleteTempDirectory(tempFolder);
         }
     }
 
