@@ -45,7 +45,7 @@ public class ScadaCommandGateway : IScadaCommandGateway
         _httpClientFactory = httpClientFactory;
     }
 
-    public async Task<ScadaCommandOutcome> SendAsync(string baseUrl, ScadaCommandEnvelope envelope, TimeSpan timeout)
+    public async Task<ScadaCommandResponse> SendAsync(string baseUrl, ScadaCommandEnvelope envelope, TimeSpan timeout)
     {
         // Zaman asimi BU METODUN ici zamanlayicisiyla uygulanir, cagiranin
         // token'iyla degil (bkz. arayuzdeki gerekce). HttpClient.Timeout yerine
@@ -72,13 +72,13 @@ public class ScadaCommandGateway : IScadaCommandGateway
             // 2xx = SCADA komutu KABUL ETTI. "Uyguladi" demek degildir; cikisin
             // gercekten degistigi ancak telemetriyle (ChannelValueChange) anlasilir.
             if (response.IsSuccessStatusCode)
-                return new ScadaCommandOutcome(CommandStatus.Succeeded, body);
+                return new ScadaCommandResponse(CommandStatus.Succeeded, body);
 
             // 4xx ve 5xx AYNI kovaya duser (Failed) cunku ikisi de "SCADA cevap
             // verdi ve komutu almadi" demektir. Ayrimi govde tasir; operatorun
             // yapacagi sey (yeniden dene / yapilandirmayi duzelt) her ikisinde de
             // ancak o metni okuyarak belirlenir.
-            return new ScadaCommandOutcome(
+            return new ScadaCommandResponse(
                 CommandStatus.Failed,
                 string.IsNullOrWhiteSpace(body)
                     ? $"SCADA HTTP {(int)response.StatusCode} döndü"
@@ -87,7 +87,7 @@ public class ScadaCommandGateway : IScadaCommandGateway
         catch (OperationCanceledException)
         {
             // Cagiranin token'i yok; buraya yalnizca KENDI zaman asimimiz dusebilir.
-            return new ScadaCommandOutcome(
+            return new ScadaCommandResponse(
                 CommandStatus.NoResponse,
                 $"SCADA {timeout.TotalSeconds:0.#} sn içinde yanıt vermedi");
         }
@@ -95,7 +95,7 @@ public class ScadaCommandGateway : IScadaCommandGateway
         {
             // Baglanti kurulamadi / DNS / TLS. SCADA'ya HIC ulasilamadi:
             // Failed'dan farkli, cunku komutun sahaya gidip gitmedigi bilinmiyor.
-            return new ScadaCommandOutcome(
+            return new ScadaCommandResponse(
                 CommandStatus.NoResponse,
                 $"SCADA'ya ulaşılamadı: {Truncate(exception.Message)}");
         }
@@ -104,7 +104,7 @@ public class ScadaCommandGateway : IScadaCommandGateway
             // Beklenmeyen her sey (bozuk URL, serilestirme) BIZIM hatamizdir ve
             // NoResponse'a yazilamaz: NoResponse "SCADA sessiz" demektir ve
             // operatoru yanlis yere bakmaya yonlendirirdi.
-            return new ScadaCommandOutcome(
+            return new ScadaCommandResponse(
                 CommandStatus.Failed,
                 $"Komut gönderilemedi: {Truncate(exception.Message)}");
         }

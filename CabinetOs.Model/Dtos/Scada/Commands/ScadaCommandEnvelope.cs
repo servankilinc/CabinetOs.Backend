@@ -1,5 +1,6 @@
 using CabinetOs.Core.Model;
 using CabinetOs.Model.Enums;
+using static CabinetOs.Model.Enums.EntityEnums;
 
 namespace CabinetOs.Model.Dtos.Scada.Commands;
 
@@ -61,3 +62,20 @@ public class ScadaCommandEnvelope : IDto
     /// <summary>Komutun SUNUCUDA olustugu an. SCADA'nin saatine guvenilmez.</summary>
     public DateTime IssuedAtUtc { get; set; }
 }
+
+
+/// <summary>
+/// SCADA cagrisinin sonucu. <see cref="Message"/> operatore gosterilecek tek teshis metnidir ve <c>DeviceCommand.ResultMessage</c>'a yazilir.
+/// </summary>
+public readonly record struct ScadaCommandResponse(CommandStatus Status, string? Message);
+
+
+
+/// <summary>
+/// Gecmis kaydinin govdesi. NIYET ve TELDEKI DEGER birlikte yazilir: yalnizca
+/// deger saklansaydi, NC kabloli bir rolenin gecmisinde <c>"0"</c> goren biri
+/// bunun "kapat" mi yoksa "ac" mi oldugunu bir daha cikaramazdi. Kutup da
+/// yaninda duruyor ki kablolama sonradan degisse bile o anki yorum sabit
+/// kalsin.
+/// </summary>
+public sealed record ScadaCommandPayload(bool TurnOn, string Value, PinFunction? Polarity);

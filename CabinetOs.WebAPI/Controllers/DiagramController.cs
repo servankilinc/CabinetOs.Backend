@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using CabinetOs.WebAPI.Controllers.Base;
 using CabinetOs.Model.Dtos.Diagram.Commands;
-using CabinetOs.Business.Utils.Diagram;
+using CabinetOs.Business.Abstract;
 
 namespace CabinetOs.WebAPI.Controllers;
 

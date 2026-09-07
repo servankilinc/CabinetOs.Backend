@@ -211,17 +211,9 @@ public partial class DeviceCommandService
     /// veritabaninda duran metin ile tel uzerinde giden metin AYNI olsun.
     /// </summary>
     private static string BuildPayloadJson(bool turnOn, string value, PinFunction? polarity) =>
-        JsonSerializer.Serialize(new CommandPayload(turnOn, value, polarity), ProjectJsonOptions.SerializerOptions);
+        JsonSerializer.Serialize(new ScadaCommandPayload(turnOn, value, polarity), ProjectJsonOptions.SerializerOptions);
 
-    /// <summary>
-    /// Gecmis kaydinin govdesi. NIYET ve TELDEKI DEGER birlikte yazilir: yalnizca
-    /// deger saklansaydi, NC kabloli bir rolenin gecmisinde <c>"0"</c> goren biri
-    /// bunun "kapat" mi yoksa "ac" mi oldugunu bir daha cikaramazdi. Kutup da
-    /// yaninda duruyor ki kablolama sonradan degisse bile o anki yorum sabit
-    /// kalsin.
-    /// </summary>
-    private sealed record CommandPayload(bool TurnOn, string Value, PinFunction? Polarity);
-
+     
     /// <summary>
     /// Kanalin NO/NC kutbu — hangi kontagin YUKU tasidigi.
     ///
@@ -354,13 +346,13 @@ public partial class DeviceCommandService
     /// Bozuk/eski bir payload sessizce <c>null</c> uretir: gecmis listesi tek bir
     /// okunamayan satir yuzunden 500 vermemeli.
     /// </summary>
-    private static CommandPayload? ReadPayload(string? payloadJson)
+    private static ScadaCommandPayload? ReadPayload(string? payloadJson)
     {
         if (string.IsNullOrWhiteSpace(payloadJson)) return null;
 
         try
         {
-            return JsonSerializer.Deserialize<CommandPayload>(payloadJson, ProjectJsonOptions.SerializerOptions);
+            return JsonSerializer.Deserialize<ScadaCommandPayload>(payloadJson, ProjectJsonOptions.SerializerOptions);
         }
         catch (JsonException)
         {
