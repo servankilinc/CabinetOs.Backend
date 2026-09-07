@@ -115,7 +115,6 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             i.HasIndex(i => new { i.CabinetId, i.Direction, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
             // ChannelEvent iliskisi Entity<ChannelEvent> blogunda tanimli — ayni
             // iliskiyi iki yerde yapilandirmak, ikisi ayrisirsa sessiz bir surpriz olur.
-            i.Property(i => i.EventTriggerValue).HasMaxLength(32);
             i.HasQueryFilter(f => !f.IsDeleted);
         });
         modelBuilder.Entity<Pin>(p =>

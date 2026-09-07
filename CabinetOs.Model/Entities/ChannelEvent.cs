@@ -8,17 +8,21 @@ namespace CabinetOs.Model.Entities;
 ///
 /// <b>Ham telemetri geçmişi DEĞİLDİR.</b> Bu sistemde <c>TelemetryRecord</c>
 /// benzeri bir zaman serisi tablosu yoktur ve olmayacaktır; saklanan şey her
-/// okuma değil, <i>anlamlı olay</i>tır. Hangi kanalın anlamlı olduğunu
-/// <see cref="IoChannel.IsEventLogged"/>, hangi değere geçişin olay sayıldığını
-/// <see cref="IoChannel.EventTriggerValue"/> söyler — ikisi de diyagramı çizen
-/// operatörün kararıdır.
+/// okuma değil, <i>değişim</i>dir: aynı değerin tekrarı satır üretmez
+/// (<c>ChannelEventService</c>, "degismeyen kanala hic dokunulmaz").
+///
+/// Kanal bazında opt-in <b>yoktur</b>: <see cref="IoChannel.Direction"/> giriş
+/// olan her kanalın her değer değişimi buraya düşer. Eskiden zincirde
+/// <c>IoChannel.IsEventLogged</c> bayrağı ve <c>EventTriggerValue</c>
+/// tetikleyicisi vardı; tetikleyici tek bir değeri ifade edebildiği ve bayrağın
+/// hiçbir yazma yolu bulunmadığı için ikisi de kaldırıldı.
 ///
 /// Olayın ANLAMI burada saklanmaz: "In7 = 1" satırının "dış kapı hareket
 /// algılandı" demek olduğu bilgisi <see cref="IoChannel.Name"/>'den, yani
 /// diyagramdan okunur. Adı buraya kopyalamak, kanal yeniden adlandırıldığında
 /// sessizce ayrışan bir kopya alan üretirdi.
 ///
-/// Yazan tek yer: <c>ScadaService.IngestAsync</c>.
+/// Yazan tek yer: <c>ChannelEventService</c>'in ingest yolu.
 /// Sözleşme: <c>docs/api-contract/12-channel-events.md</c>
 /// </summary>
 public class ChannelEvent : IEntity

@@ -369,18 +369,19 @@ public class ChannelEventService : IChannelEventService
     /// surduugumuzde donen deger bir saha olayi degil, kendi komutumuzun
     /// yankisidir ve kaydi zaten <c>DeviceCommand</c>'dadir. <c>Bidirectional</c>
     /// da disaridadir: yonu belirsiz bir kanalin olayi da belirsizdir.</item>
-    /// <item><b>Opt-in.</b> Kanal isaretli degilse yazilmaz. Bir kabinde onlarca
-    /// giris pini vardir ve hepsinin gecmisi istenmiyor — kullanilmayan uclar,
-    /// yedek hatlar, kurulumda salinan kanallar.</item>
-    /// <item><b>Tetikleyici.</b> <c>EventTriggerValue</c> doluysa yalnizca o
-    /// degere gecis olaydir: hareket sensorunde <c>0→1</c> olaydir,
-    /// <c>1→0</c> degildir.</item>
+    /// <item><b>Deger.</b> Okunabilir ve olay kolonuna sigan her deger yazilir.</item>
     /// </list>
+    ///
+    /// <b>Kanal bazinda opt-in YOK.</b> Eskiden zincirde <c>IoChannel.IsEventLogged</c>
+    /// bayragi ve <c>EventTriggerValue</c> tetikleyicisi vardi; ikisi de kaldirildi.
+    /// Tetikleyici tek bir degeri ifade edebiliyordu, oysa iki-uc farkli degerde de
+    /// olay istenebiliyor; bayragin ise hicbir yazma yolu yoktu (her kanalda
+    /// <c>false</c> kaliyor ve tablo pratikte hic yazilmiyordu). Artik giris
+    /// kanalindaki HER deger degisimi olaydir.
     /// </summary>
     private static bool ShouldRecordEvent(IoChannel channel, string? value)
     {
         if (channel.Direction != PinDirection.Input) return false;
-        if (!channel.IsEventLogged) return false;
 
         // Deger okunamadi ("kanal var ama cevap yok"). Kaydedilecek bir DEGER
         // yok; anlik deger yine de null'a cekilir, ama olay uretilmez.
@@ -393,8 +394,7 @@ public class ChannelEventService : IChannelEventService
         // reddetme" kuralini bozardi.
         if (value.Length > 32) return false;
 
-        return channel.EventTriggerValue == null
-            || string.Equals(channel.EventTriggerValue, value, StringComparison.Ordinal);
+        return true;
     }
 
     /// <summary>

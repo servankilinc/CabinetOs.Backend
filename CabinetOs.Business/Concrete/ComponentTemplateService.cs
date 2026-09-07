@@ -4,6 +4,8 @@ using CabinetOs.Core.BaseRequestModels;
 using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Core.Utils.Validation;
 using CabinetOs.DataAccess.UoW;
+using CabinetOs.Model.Dtos.Common;
+using CabinetOs.Model.Dtos.ComponentTemplate.Commands;
 using CabinetOs.Model.Dtos.ComponentTemplate.Queries;
 using CabinetOs.Model.Entities;
 using System.Linq.Expressions;
@@ -21,6 +23,74 @@ public partial class ComponentTemplateService : IComponentTemplateService
         _mapper = mapper;
         _validationService = validationService;
     }
+
+
+
+    /// <summary>
+    /// Palet yazarligi: sablon + pinleri TEK transaction'da olusturur.
+    ///
+    /// Generic CRUD sablonunun <c>*AndSaveAsync</c> konvansiyonu burada BILEREK
+    /// kirilir (ayni gerekce: <c>DiagramService.Save.cs</c>) — her pin icin ayri bir
+    /// commit, yarim yazilmis bir sablon birakma riski demek olurdu.
+    /// </summary>
+    public async Task<Result<CreatedDto>> CreateAsync(ComponentTemplateCreateRequest request, CancellationToken cancellationToken = default)
+    {
+        var validationResult = await _validationService.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            return Result<CreatedDto>.Validation(validationResult.Failures, description: "Validation failed for ComponentTemplateCreateRequest");
+
+        // DeviceTypeId ONCE kontrol edilir. FK'ya birakilsaydi gecersiz bir tip
+        // kisit ihlali uretir ve 500 donerdi; oysa bu, istemcinin duzeltebilecegi
+        // siradan bir girdi hatasi. Ayni yaklasim DiagramService.SaveAsync'te de var:
+        // referans dogrulamalari transaction ACILMADAN once yapilir.
+        var deviceTypeExists = await _unitOfWork.DeviceTypes.IsExistAsync(
+            where: t => t.Id == request.DeviceTypeId,
+            cancellationToken: cancellationToken);
+
+        if (!deviceTypeExists)
+        {
+            return Result<CreatedDto>.Validation(
+                new Dictionary<string, string[]> { ["DeviceTypeId"] = ["Cihaz tipi bulunamadi"] },
+                description: "Sablon cihaz tipi gecersiz");
+        }
+
+        var template = _mapper.Map<ComponentTemplate>(request);
+        template.IsActive = true;
+
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            _unitOfWork.ComponentTemplates.Add(template);
+            // Sablon ONCE yazilir: pinlerin FK'si icin gercek bir Id gerekiyor.
+            // Iki SaveChanges tek transaction icinde — arada bir hata olursa
+            // ikisi de geri alinir.
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (request.Pins.Count > 0)
+            {
+                foreach (var draft in request.Pins)
+                {
+                    var pin = _mapper.Map<ComponentTemplatePin>(draft);
+                    pin.ComponentTemplateId = template.Id;
+                    _unitOfWork.ComponentTemplatePins.Add(pin);
+                }
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return Result<CreatedDto>.Success(new CreatedDto(template.Id));
+        }
+        catch
+        {
+            // Yutulmaz, yeniden firlatilir: global ExceptionHandleMiddleware yigini
+            // loglayip ProblemDetails uretiyor. Result.Failure'a cevirmek,
+            // beklenmedik bir DB hatasinin izini silerdi.
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            throw;
+        }
+    }
+
 
     public async Task<Result<ICollection<ComponentTemplatePaletteDto>>> GetPaletteAsync(CancellationToken cancellationToken = default)
     {
