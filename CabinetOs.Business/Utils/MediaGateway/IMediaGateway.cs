@@ -17,6 +17,7 @@ namespace CabinetOs.Business.Utils.MediaGateway;
 /// </summary>
 public interface IMediaGateway
 {
+    public const string HttpClientName = "http_client_media_gateway";
     /// <summary>
     /// Canli izleme yolunu kurar (varsa gunceller).
     ///

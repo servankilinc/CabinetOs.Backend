@@ -9,9 +9,9 @@ namespace CabinetOs.Business.Settings;
 /// singleton olarak kaydediliyor. Tek bir yerde farkli desen acmak, "hangisi
 /// dogru" sorusunu kalici hale getirirdi.
 /// </summary>
-public class MediaMtxSettings
+public class MediaGatewaySettings
 {
-    public const string SectionName = "Mediamtx";
+    public const string SectionName = "MediaGateway";
 
     /// <summary>
     /// Control API adresi. Yalnizca SUNUCU kullanir; loopback olmasi beklenir —

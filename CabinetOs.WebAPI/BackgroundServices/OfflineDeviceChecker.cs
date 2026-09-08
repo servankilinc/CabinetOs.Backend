@@ -15,17 +15,17 @@ namespace CabinetOs.WebAPI.BackgroundServices;
 /// <c>Scada:SweepIntervalSeconds</c>): saha kosullari kuruluma gore degisir ve
 /// bunun icin yeniden derleme gerekmemeli.
 /// </summary>
-public class StaleDeviceSweeper : BackgroundService
+public class OfflineDeviceChecker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<StaleDeviceSweeper> _logger;
+    private readonly ILogger<OfflineDeviceChecker> _logger;
     private readonly TimeSpan _staleAfter;
     private readonly TimeSpan _interval;
 
     private const int DefaultStaleAfterSeconds = 120;
     private const int DefaultSweepIntervalSeconds = 60;
 
-    public StaleDeviceSweeper(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<StaleDeviceSweeper> logger)
+    public OfflineDeviceChecker(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<OfflineDeviceChecker> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
@@ -42,7 +42,7 @@ public class StaleDeviceSweeper : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation(
-            "StaleDeviceSweeper basladi: her {Interval} sn, esik {Stale} sn",
+            "OfflineDeviceChecker basladi: her {Interval} sn, esik {Stale} sn",
             _interval.TotalSeconds, _staleAfter.TotalSeconds);
 
         using var timer = new PeriodicTimer(_interval);
@@ -57,7 +57,7 @@ public class StaleDeviceSweeper : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var channelEventService = scope.ServiceProvider.GetRequiredService<IChannelEventService>();
 
-                int swept = await channelEventService.SweepStaleDevicesAsync(_staleAfter, stoppingToken);
+                int swept = await channelEventService.SetOfflineDevicesAsync(_staleAfter, stoppingToken);
                 if (swept > 0)
                     _logger.LogInformation("{Count} cihaz Offline'a cekildi", swept);
             }
@@ -70,7 +70,7 @@ public class StaleDeviceSweeper : BackgroundService
                 // Bir turun patlamasi supurucuyu OLDURMEMELI: yutulmazsa
                 // BackgroundService sessizce durur ve uygulama ayakta oldugu halde
                 // bir daha hicbir cihaz Offline'a cekilmez.
-                _logger.LogError(exception, "StaleDeviceSweeper turu basarisiz");
+                _logger.LogError(exception, "OfflineDeviceChecker turu basarisiz");
             }
         }
     }

@@ -20,13 +20,7 @@ namespace CabinetOs.Business.Utils.ScadaCommandGateway;
 /// </summary>
 public class ScadaCommandGateway : IScadaCommandGateway
 {
-    /// <summary>
-    /// Named client. Program.cs'te <c>AddHttpClient("scada")</c> ile kayitli;
-    /// yeni <c>HttpClient</c> kurmak yerine fabrika kullanmanin sebebi soket
-    /// tuketimi degil DNS: uzun omurlu tek bir <c>HttpClient</c>, SCADA'nin IP'si
-    /// degistiginde eski adrese baglanmaya devam eder.
-    /// </summary>
-    public const string HttpClientName = "scada";
+
 
     /// <summary>SCADA tarafindaki yol. <c>Cabinet.ScadaBaseUrl</c>'in altina eklenir.</summary>
     private const string CommandPath = "command";
@@ -57,7 +51,7 @@ public class ScadaCommandGateway : IScadaCommandGateway
 
         try
         {
-            var client = _httpClientFactory.CreateClient(HttpClientName);
+            var client = _httpClientFactory.CreateClient(IScadaCommandGateway.HttpClientName);
 
             // Govde REST yanitlariyla AYNI serializer'dan gecer: SCADA ekibine
             // verilen ornekler camelCase ve enum'lar sayisal.

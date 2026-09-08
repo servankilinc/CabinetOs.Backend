@@ -1,6 +1,7 @@
 using CabinetOs.Business.Abstract;
 using CabinetOs.Model.Dtos.Camera.Commands;
 using CabinetOs.WebAPI.Controllers.Base;
+using CabinetOs.WebAPI.Tools;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -43,10 +44,10 @@ public class MediaGatewayController : BaseController
     /// <b>Kendi rate limit politikasi var</b> ve o politikanin
     /// <c>Program.cs</c>'te TANIMLI OLMASI sart: tanimsiz bir ada isaret eden
     /// <c>[EnableRateLimiting]</c> middleware'i patlatir ve uc her istekte 500
-    /// doner. (Tam olarak bu, <c>policy_scada_ingest</c> ile bir kez yasandi.)
+    /// doner. (Tam olarak bu, <c>policy_rate_limiter_scada</c> ile bir kez yasandi.)
     /// </summary>
     [HttpPost("auth")]
-    [EnableRateLimiting("policy_mediamtx_auth")]
+    [EnableRateLimiting(RateLimiterKey.MediaGateway)]
     public async Task<IActionResult> Auth([FromBody] MediaMtxAuthDto request, CancellationToken cancellationToken)
     {
         // YALNIZCA OKUMA. publish reddedilir: bu sisteme disaridan yayin

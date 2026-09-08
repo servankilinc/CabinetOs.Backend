@@ -13,8 +13,8 @@ using CabinetOs.DataAccess.Contexts;
 using CabinetOs.Model.Dtos.Cabinet.Commands;
 using CabinetOs.Model.Entities;
 using CabinetOs.WebAPI.BackgroundServices;
-using CabinetOs.WebAPI.ExceptionHandler;
 using CabinetOs.WebAPI.Hubs;
+using CabinetOs.WebAPI.Tools;
 using CabinetOs.WebAPI.Utils;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using System.Runtime;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 
@@ -76,7 +77,7 @@ builder.Services.AddRateLimiter(options =>
         await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
     };
 
-    options.AddPolicy("policy_rate_limiter", httpContext =>
+    options.AddPolicy(RateLimiterKey.Default, httpContext =>
     {
         string partitionKey = httpContext.User.Identity?.IsAuthenticated == true
             ? $"user:{httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? httpContext.User.Identity.Name}"
@@ -93,7 +94,7 @@ builder.Services.AddRateLimiter(options =>
     });
 
     // SCADA ingest'i AYRI bir politika ister ve bu politikanin VAR OLMASI sarttir:
-    // ScadaController'daki [EnableRateLimiting("policy_scada_ingest")] tanimsiz bir
+    // ScadaController'daki [EnableRateLimiting("policy_rate_limiter_scada")] tanimsiz bir
     // ada isaret ederse middleware InvalidOperationException atar ve uc her istekte
     // 500 doner. (Tam olarak bu olmustu — politika Program.cs yeniden yazilirken
     // dusmus, oznitelik yerinde kalmisti; ingest sessizce tamamen kirilmisti.)
@@ -106,7 +107,7 @@ builder.Services.AddRateLimiter(options =>
     // Govdedeki cabinetId'ye gore bolumlendirmek, sahte Guid'lerle sinirsiz butce
     // uretmek demek olurdu.
 
-    options.AddPolicy("policy_scada_ingest", httpContext =>
+    options.AddPolicy(RateLimiterKey.Scada, httpContext =>
     {
         string partitionKey = $"scada-ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
 
@@ -124,10 +125,10 @@ builder.Services.AddRateLimiter(options =>
 
     // Medya gecidinin kimlik dogrulama kancasi da AYRI politika ister ve
     // politikanin VAR OLMASI sarttir — MediaGatewayController'daki
-    // [EnableRateLimiting("policy_mediamtx_auth")] tanimsiz bir ada isaret
+    // [EnableRateLimiting("policy_rate_limiter_media_gateway")] tanimsiz bir ada isaret
     // ederse middleware exception atar ve uc her istekte 500 doner. 
 
-    options.AddPolicy("policy_mediamtx_auth", httpContext =>
+    options.AddPolicy(RateLimiterKey.MediaGateway, httpContext =>
     {
         string partitionKey = $"mediamtx-ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
 
@@ -259,15 +260,10 @@ builder.Services
 
 // Business katmanindaki yayin portunun implementasyonu. Business AspNetCore'a
 // referans vermedigi icin SignalR bilgisi bu katmanda kaliyor.
-builder.Services.AddScoped<IDiagramNotifier, DiagramHubNotifier>();
-
-// Sablon gorsellerinin diske yazilmasi. Business katmaninda DEGIL: IFormFile ve
-// wwwroot barindirma detaylaridir ve DiagramService'i dosya sistemine baglamak
-// onu test edilemez hale getirirdi.
-builder.Services.AddSingleton<TemplateImageStore>();
+builder.Services.AddScoped<IDiagramNotifier, DiagramNotifier>();
 
 // Push-only modelde "veri gelmiyor" durumunu yalnizca zaman tespit edebilir.
-builder.Services.AddHostedService<StaleDeviceSweeper>();
+builder.Services.AddHostedService<OfflineDeviceChecker>();
 #endregion
 
 
@@ -284,7 +280,7 @@ builder.Services.AddHostedService<StaleDeviceSweeper>();
 // Resilience/retry handler'i BILEREK TAKILI DEGIL: tekrarlanan bir role darbesi
 // basarisiz bir komuttan daha kotudur (kilidi iki kez acar). Eklenmesi sessiz bir
 // davranis degisikligi olur.
-builder.Services.AddHttpClient(ScadaCommandGateway.HttpClientName, client =>
+builder.Services.AddHttpClient(IScadaCommandGateway.HttpClientName, client =>
 {
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
@@ -300,7 +296,7 @@ builder.Services.AddHttpClient(ScadaCommandGateway.HttpClientName, client =>
 // Resilience/retry handler'i BILEREK TAKILI DEGIL. Cevap vermeyen bir kameraya
 // otomatik tekrar denemek, zaten zorlanan cihaza ek yuk bindirmekten baska is
 // gormez; operator ACIKCA yeniden dener.
-builder.Services.AddHttpClient(IsapiSnapshotGateway.HttpClientName, client =>
+builder.Services.AddHttpClient(ISnapshotGateway.HttpClientName, client =>
 {
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
@@ -317,8 +313,10 @@ builder.Services.AddHttpClient(IsapiSnapshotGateway.HttpClientName, client =>
 // 5 sn cok genis bir tavan: bu cagrilar olculdugunde 3-14 ms suruyor. Gecit
 // loopback'te ve yalnizca kucuk bir JSON yaziyor; 5 saniyeyi asiyorsa cevap
 // beklemenin degil, hatayi gostermenin zamanidir.
-builder.Services.AddHttpClient<IMediaGateway, MediaMtxGateway>(client =>
+builder.Services.AddHttpClient(IMediaGateway.HttpClientName, client =>
 {
+    var apiBaseUrl = builder.Configuration.GetSection("MediaGateway:ApiBaseUrl").Get<string>() ?? "http://127.0.0.1:9997";
+    client.BaseAddress = new Uri(apiBaseUrl.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(5);
 });
 
@@ -386,14 +384,14 @@ app.UseRateLimiter();
 // endpoint metadata'sina KONVANSIYON olarak ekler ve konvansiyonlar
 // oznitelilerden SONRA calisir. Rate limiting middleware'i son
 // EnableRateLimitingAttribute'u sectigi icin, ScadaController'daki
-// [EnableRateLimiting("policy_scada_ingest")] sessizce EZILIRDI — ingest ucu
+// [EnableRateLimiting("policy_rate_limiter_scada")] sessizce EZILIRDI — ingest ucu
 // 600/10 sn yerine 50/10 sn ile calisir ve tam da onlenmek istenen bogulma olurdu.
 app.MapControllers().Add(endpointBuilder =>
 {
     bool hasOwnPolicy = endpointBuilder.Metadata.Any(m => m is EnableRateLimitingAttribute or DisableRateLimitingAttribute);
     if (hasOwnPolicy) return;
 
-    endpointBuilder.Metadata.Add(new EnableRateLimitingAttribute("policy_rate_limiter"));
+    endpointBuilder.Metadata.Add(new EnableRateLimitingAttribute(RateLimiterKey.Default));
 });
 
 // Hub RATE LIMIT ALTINDA DEGIL: tek bir uzun omurlu baglantidir, istek sayisiyla

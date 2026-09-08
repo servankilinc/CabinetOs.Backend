@@ -21,11 +21,7 @@ namespace CabinetOs.Business.Utils.SnapshotGateway;
 /// </summary>
 public class IsapiSnapshotGateway : ISnapshotGateway
 {
-    /// <summary>
-    /// Named client. <c>Program.cs</c>'te sonsuz timeout ile kayitli; zaman
-    /// asimini bu sinif kendi CTS'iyle uyguluyor.
-    /// </summary>
-    public const string HttpClientName = "camera-snapshot";
+
 
     /// <summary>
     /// Kamera basina son gorulen challenge ve nonce sayaci.
@@ -71,7 +67,7 @@ public class IsapiSnapshotGateway : ISnapshotGateway
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(TimeSpan.FromMilliseconds(_settings.SnapshotTimeoutMs));
 
-        var client = _httpClientFactory.CreateClient(HttpClientName);
+        var client = _httpClientFactory.CreateClient(ISnapshotGateway.HttpClientName);
 
         try
         {

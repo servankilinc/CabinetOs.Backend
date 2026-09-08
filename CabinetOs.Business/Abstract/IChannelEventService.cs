@@ -30,11 +30,11 @@ public interface IChannelEventService
 
     /// <summary>
     /// Esik suresi boyunca haber alinamayan cihazlari <c>Offline</c>'a ceker ve
-    /// degisenleri yayinlar. <c>StaleDeviceSweeper</c> tarafindan periyodik cagrilir.
+    /// degisenleri yayinlar. <c>OfflineDeviceChecker</c> tarafindan periyodik cagrilir.
     ///
     /// Push-only bir modelde bu olmadan olu bir kabin sonsuza dek "Online" gorunur:
     /// son ingest'te yazilan durum, bir daha hicbir sey gelmese bile oldugu gibi kalir.
     /// </summary>
     /// <returns>Offline'a cekilen cihaz sayisi.</returns>
-    Task<int> SweepStaleDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default);
+    Task<int> SetOfflineDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default);
 }

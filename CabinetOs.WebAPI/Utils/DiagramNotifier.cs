@@ -1,8 +1,9 @@
 using CabinetOs.Business.Utils.DiagramNotifier;
 using CabinetOs.Model.Dtos.Realtime.Queries;
+using CabinetOs.WebAPI.Hubs;
 using Microsoft.AspNetCore.SignalR;
 
-namespace CabinetOs.WebAPI.Hubs;
+namespace CabinetOs.WebAPI.Utils;
 
 /// <summary>
 /// <see cref="IDiagramNotifier"/> portunun SignalR implementasyonu.
@@ -11,12 +12,12 @@ namespace CabinetOs.WebAPI.Hubs;
 /// kurallari bir tasima teknolojisine baglanmaz ve testte gercek bir hub ayaga
 /// kaldirilmasi gerekmez.
 /// </summary>
-public class DiagramHubNotifier : IDiagramNotifier
+public class DiagramNotifier : IDiagramNotifier
 {
     private readonly IHubContext<DiagramHub, IDiagramClient> _hub;
-    private readonly ILogger<DiagramHubNotifier> _logger;
+    private readonly ILogger<DiagramNotifier> _logger;
 
-    public DiagramHubNotifier(IHubContext<DiagramHub, IDiagramClient> hub, ILogger<DiagramHubNotifier> logger)
+    public DiagramNotifier(IHubContext<DiagramHub, IDiagramClient> hub, ILogger<DiagramNotifier> logger)
     {
         _hub = hub;
         _logger = logger;

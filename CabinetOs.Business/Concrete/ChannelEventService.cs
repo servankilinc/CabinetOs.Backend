@@ -275,7 +275,7 @@ public class ChannelEventService : IChannelEventService
         return WorstStatus([.. statuses, changedDevice.DeviceStatusId]);
     }
 
-    public async Task<int> SweepStaleDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default)
+    public async Task<int> SetOfflineDevicesAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default)
     {
         var threshold = DateTime.UtcNow - staleAfter;
 

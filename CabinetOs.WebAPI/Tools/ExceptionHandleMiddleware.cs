@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 
-namespace CabinetOs.WebAPI.ExceptionHandler;
+namespace CabinetOs.WebAPI.Tools;
 
 public class ExceptionHandleMiddleware : IExceptionHandler
 {

@@ -7,10 +7,6 @@ namespace CabinetOs.WebAPI.Utils;
 /// <summary>
 /// <see cref="ICaptureFileStore"/>'un dosya sistemi implementasyonu.
 ///
-/// Servis katmaninda DEGIL WebAPI katmaninda — <see cref="TemplateImageStore"/>
-/// ile birebir ayni gerekce: <c>IWebHostEnvironment</c> ve <c>wwwroot</c>
-/// barindirma detaylaridir ve <c>CameraService</c>'i dosya sistemine baglamak
-/// onu test edilemez hale getirirdi.
 ///
 /// <b>Sonucu acikca:</b> buraya yazilan dosyalar <c>UseStaticFiles</c> ile
 /// KIMLIK DOGRULAMASIZ servis edilir; URL'yi bilen goruntuyu indirebilir.

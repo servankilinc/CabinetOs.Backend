@@ -59,7 +59,7 @@ public class ScadaIngestRequest : IDto
     /// Olcumun SCADA tarafindaki zamani. Bilgi amaclidir: yazilan
     /// <c>ValueUpdatedAt</c> / <c>LastSeen</c> alanlari SUNUCU saatinden gelir,
     /// cunku SCADA'nin saati kaymis olabilir ve bayat cihaz supurucusu
-    /// (<c>StaleDeviceSweeper</c>) o alanlara gore karar veriyor — kaymis bir saat
+    /// (<c>OfflineDeviceChecker</c>) o alanlara gore karar veriyor — kaymis bir saat
     /// canli bir kabini kalici olarak Offline gosterebilirdi.
     /// </summary>
     public DateTime? TimestampUtc { get; set; }

@@ -28,8 +28,5 @@ public class DiagramHub : Hub<IDiagramClient>
 
     public Task Unsubscribe(Guid cabinetId) =>
         Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(cabinetId), Context.ConnectionAborted);
-
-    // Baglanti kopunca gruplardan cikis icin ek kod YOK: SignalR, kopan bir
-    // baglantiyi tum gruplarindan kendisi dusurur. Elle yapmaya calismak, yeniden
-    // baglanan istemcinin yeni ConnectionId'siyle yaris uretirdi.
+ 
 }

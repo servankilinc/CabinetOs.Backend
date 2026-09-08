@@ -36,7 +36,7 @@ public class ScadaController : BaseController
     /// </summary>
     [HttpPost("ingest")]
     [AllowAnonymous]
-    [EnableRateLimiting("policy_scada_ingest")]
+    [EnableRateLimiting("policy_rate_limiter_scada")]
     public async Task<IActionResult> Ingest(ScadaIngestRequest request, CancellationToken cancellationToken)
     {
         var result = await _channelEventService.IngestAsync(request, cancellationToken);

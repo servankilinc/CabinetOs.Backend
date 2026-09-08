@@ -42,7 +42,7 @@ public class ClipCaptureWorker : BackgroundService
                 // Her cekim icin YENI scope: ICameraService (ve altindaki
                 // DbContext) scoped'dir. Tek bir uzun omurlu context, saatler
                 // boyunca okunan her entity'yi izlemeye devam eder ve bellegi
-                // sizdirirdi (StaleDeviceSweeper ile ayni gerekce).
+                // sizdirirdi (OfflineDeviceChecker ile ayni gerekce).
                 using var scope = _scopeFactory.CreateScope();
                 var cameraService = scope.ServiceProvider.GetRequiredService<ICameraService>();
 

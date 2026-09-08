@@ -1,20 +1,35 @@
 using CabinetOs.Business.Abstract;
 using CabinetOs.Core.BaseRequestModels;
+using CabinetOs.Core.Utils.ResultPattern;
 using CabinetOs.Model.Dtos.ComponentTemplate.Commands;
+using CabinetOs.Model.Dtos.ComponentTemplate.Queries;
 using CabinetOs.WebAPI.Controllers.Base;
-using CabinetOs.WebAPI.Utils;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CabinetOs.WebAPI.Controllers;
 
 public class ComponentTemplateController : BaseController
 {
+    #region Template Dosya Parametreleri
+    private const string RelativeFolder = "uploads/templates";
+    private const long MaxBytes = 4 * 1024 * 1024;
+    private static readonly Dictionary<string, string> AllowedTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".png"] = "image/png",
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".webp"] = "image/webp",
+        [".svg"] = "image/svg+xml"
+    };
+    private static string AllowedExtensionList => string.Join(", ", AllowedTypes.Keys); 
+    #endregion
+
     private readonly IComponentTemplateService _componentTemplateService;
-    private readonly TemplateImageStore _imageStore;
-    public ComponentTemplateController(ILogger<ComponentTemplateController> logger, IComponentTemplateService componentTemplateService, TemplateImageStore imageStore) : base(logger)
+    private readonly IWebHostEnvironment _webHostEnvironment;
+    public ComponentTemplateController(ILogger<ComponentTemplateController> logger, IComponentTemplateService componentTemplateService, IWebHostEnvironment webHostEnvironment) : base(logger)
     {
         _componentTemplateService = componentTemplateService;
-        _imageStore = imageStore;
+        _webHostEnvironment = webHostEnvironment;
     }
 
     /// <summary>
@@ -42,7 +57,7 @@ public class ComponentTemplateController : BaseController
     [HttpPost("image")]
     public async Task<IActionResult> UploadImage(IFormFile? file, CancellationToken cancellationToken)
     {
-        var result = await _imageStore.SaveAsync(file, cancellationToken);
+        var result = await SaveTemplateFileAsync(file, cancellationToken);
         return ToAction(result);
     }
 
@@ -87,4 +102,34 @@ public class ComponentTemplateController : BaseController
         var result = await _componentTemplateService.GetComponentTemplateDetailDtoListAsync(request);
         return ToAction(result);
     }
+
+    #region Helpers
+    /// <summary> Dosyayi yazar ve istemcinin kullanacagi GOreli URL'yi doner. </summary>
+    public async Task<Result<TemplateImageDto>> SaveTemplateFileAsync(IFormFile? file, CancellationToken cancellationToken = default)
+    {
+        if (file is null || file.Length == 0)
+            return Result<TemplateImageDto>.Failure("Dosya boş gönderildi.");
+
+        if (file.Length > MaxBytes)
+            return Result<TemplateImageDto>.Failure($"Dosya en fazla {MaxBytes / (1024 * 1024)} MB olabilir");
+
+        var extension = Path.GetExtension(file.FileName);
+        if (string.IsNullOrWhiteSpace(extension) || !AllowedTypes.ContainsKey(extension))
+            return Result<TemplateImageDto>.Failure($"Yalnizca su uzantilar kabul edilir: {AllowedExtensionList}");
+
+        var fileName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
+
+        var webRoot = _webHostEnvironment.WebRootPath ?? Path.Combine(_webHostEnvironment.ContentRootPath, "wwwroot");
+        var folder = Path.Combine(webRoot, RelativeFolder.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(folder);
+
+        var fullPath = Path.Combine(folder, fileName);
+        await using (var stream = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            await file.CopyToAsync(stream, cancellationToken);
+        }
+
+        return Result<TemplateImageDto>.Success(new TemplateImageDto { Url = $"/{RelativeFolder}/{fileName}" });
+    }
+    #endregion
 }

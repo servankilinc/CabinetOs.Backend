@@ -49,8 +49,8 @@ namespace CabinetOs.Business
             // kullanilmiyor; tek bir yerde acmak "hangisi dogru" sorusunu kalici
             // hale getirirdi.
             services.AddSingleton(
-                configuration.GetSection(Settings.MediaMtxSettings.SectionName).Get<Settings.MediaMtxSettings>()
-                ?? new Settings.MediaMtxSettings());
+                configuration.GetSection(Settings.MediaGatewaySettings.SectionName).Get<Settings.MediaGatewaySettings>()
+                ?? new Settings.MediaGatewaySettings());
 
             services.AddSingleton(
                 configuration.GetSection(Settings.CameraCaptureSettings.SectionName).Get<Settings.CameraCaptureSettings>()
