@@ -5,6 +5,7 @@ using CabinetOs.Business.Concrete;
 using CabinetOs.Business.Utils.TokenService;
 using CabinetOs.Business.Utils.CameraProtocolProfile;
 using CabinetOs.Business.Utils.ClipCaptureQueue;
+using CabinetOs.Business.Utils.MediaGateway;
 using CabinetOs.Business.Utils.SnapshotGateway;
 using CabinetOs.Business.Utils.ScadaCommandGateway;
 
@@ -62,6 +63,11 @@ namespace CabinetOs.Business
             services.AddSingleton<ICameraProtocolProfile, HikvisionProtocolProfile>();
             services.AddSingleton<ICameraProtocolProfileResolver, CameraProtocolProfileResolver>();
 
+            // Iki gecit de Scoped: ikisi de yalnizca singleton bagimliliklar
+            // tasiyor (IHttpClientFactory, ayarlar, profil cozucu), ama tuketicileri
+            // (CameraService) Scoped ve kardes kayitlarla ayni omur en az sasirtici
+            // olani.
+            services.AddScoped<IMediaGateway, MediaMtxGateway>();
             services.AddScoped<ISnapshotGateway, IsapiSnapshotGateway>();
 
             // Klip kuyrugu SINGLETON olmak zorunda: uc onu doldurur, hosted

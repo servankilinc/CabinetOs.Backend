@@ -104,10 +104,10 @@ public partial class DeviceCommandService
                 new Dictionary<string, string[]> { ["IoChannelId"] = ["Kanal devre dışı"] },
                 description: "Channel disabled");
 
-        // Yon kontrolu. Reddedilen YALNIZCA Input; Bidirectional gecerli bir
-        // kumanda hedefidir (adi geregi cikis da verebilir) ve onu reddetmek
-        // mesru bir komutu engellemek olurdu.
-        if (channel.Direction == PinDirection.Input)
+        // Yon kontrolu. Reddedilen her iki GIRIS turu: Input (dijital) ve
+        // AnalogInput. Bidirectional gecerli bir kumanda hedefidir (adi geregi
+        // cikis da verebilir) ve onu reddetmek mesru bir komutu engellemek olurdu.
+        if (channel.Direction is PinDirection.Input or PinDirection.AnalogInput)
             return Result<DeviceCommandResultDto>.Validation(
                 new Dictionary<string, string[]> { ["IoChannelId"] = ["Giriş yönlü kanala kumanda gönderilemez"] },
                 description: "Channel is input-only");

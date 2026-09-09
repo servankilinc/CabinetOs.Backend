@@ -1,5 +1,4 @@
 using CabinetOs.Core.Model;
-using CabinetOs.Model.Enums;
 using FluentValidation;
 
 namespace CabinetOs.Model.Dtos.Scada.Commands;
@@ -7,16 +6,21 @@ namespace CabinetOs.Model.Dtos.Scada.Commands;
 /// <summary>
 /// <c>POST /api/Scada/ingest</c> govdesi — SCADA'dan BIZE push edilen TEK okuma.
 ///
-/// <b>Neden tek okuma, neden toplu degil.</b> Kart olay guduml&#252;d&#252;r: bir pin
-/// degistiginde 5 baytlik tek bir cerceve gonderir
-/// (<c>[baslik][pin no][deger][zaman][bitis]</c>). Toplu bir paket diye bir sey
-/// hicbir zaman gelmez, dolayisiyla <c>devices[] -&gt; channels[]</c> seklindeki
+/// <b>Neden tek okuma, neden toplu degil.</b> Kart olay gudumludur: bir giris
+/// degistiginde 3 baytlik tek bir cerceve gonderir —
+/// <c>[baslik][kod][deger]</c>. SCADA akisi bu cercevelere ayirir ve HER CERCEVE
+/// ICIN bir istek atar; dolayisiyla <c>devices[] -&gt; channels[]</c> seklindeki
 /// eski govde sahada karsiligi olmayan bir yapiydi.
 ///
+/// <b>Neden cerceve alanlarina bolunmus.</b> Govde cercevenin kendi yapisini
+/// tasir: baslik <see cref="Type"/>, orta bayt <see cref="ChannelNumber"/>,
+/// son bayt <see cref="Value"/>. Eskiden ikisi <c>pin: "IN7"</c> diye tek metinde
+/// birlesikti ve ayristirilmasi gerekiyordu.
+///
 /// <b>Kimlik yalnizca <see cref="CabinetId"/>.</b> Kabin BIR kontrol kartidir;
-/// kartin adres uzayi duzdur, dolayisiyla kabin + pin bir noktayi tek basina
-/// belirler. Eski <c>externalCode</c> alani kalkti: protokolde modul bayti yok,
-/// kart kimligi soketin kendisidir.
+/// kartin adres uzayi duzdur, dolayisiyla kabin + tip + kanal bir noktayi tek
+/// basina belirler. Eski <c>externalCode</c> alani kalkti: protokolde modul bayti
+/// yok, kart kimligi soketin kendisidir.
 ///
 /// Uc <c>[AllowAnonymous]</c>'tur cunku SCADA'nin JWT'si yoktur. Bu bir sir
 /// DEGILDIR — kabin Id'si her diyagram URL'inde gorunur — dolayisiyla kabini bir
@@ -31,27 +35,42 @@ public class ScadaIngestRequest : IDto
     public Guid CabinetId { get; set; }
 
     /// <summary>
-    /// Okumanin geldigi nokta — <c>"IN1"</c>, <c>"IN7"</c>. Ayristirma
-    /// <see cref="ScadaPinAddress"/>'te.
+    /// Cerceve basligi: <c>"I"</c> dijital giris, <c>"A"</c> analog giris.
+    /// Yone cevrimi <see cref="ScadaPinAddress.TryParseType"/>'ta.
     ///
-    /// <b>Bu turda YALNIZCA giris kabul edilir.</b> Cikis pinlerinden bilgi
-    /// gelmez, onlara yalnizca kumanda gider — bir roleyi biz surdugumuzde donen
-    /// deger saha olayi degil kendi komutumuzun yankisidir ve kaydi zaten
-    /// <c>DeviceCommand</c>'dadir. <c>"OUT5"</c> gibi bir adres sozdizimsel olarak
-    /// TANINIR ama 400 ile reddedilir: bu "tanimadigim referans" degil, anlamca
-    /// gecersiz bir istektir ve sessizce atlamak yapilandirma hatasini gorunmez
-    /// kilardi.
+    /// <b>Bu turda YALNIZCA giris kabul edilir</b> ve bu, alanin tipiyle zorlanir:
+    /// <c>"O"</c> taninmaz, dolayisiyla cikis telemetrisi govdede IFADE EDILEMEZ.
+    /// (Birlesik <c>"OUT5"</c> adresi kullanildigi donemde bu, ayrica 400 ile
+    /// reddedilmesi gereken bir durumdu.)
+    ///
+    /// C# enum'u DEGIL duz string: <c>ApiJsonOptions</c> enum'lari SAYI olarak
+    /// serilestiriyor, dolayisiyla bir enum <c>"I"</c> kabul etmezdi ve tek alan
+    /// icin ayri bir converter takmak gereksiz karmasiklik olurdu.
     /// </summary>
-    public string Pin { get; set; } = null!;
+    public string Type { get; set; } = null!;
+
+    /// <summary>
+    /// Cercevenin orta bayti — referans projedeki cihaz <c>Code</c>'u, bizde
+    /// <c>IoChannel.ChannelNumber</c>.
+    ///
+    /// <b><c>Type</c> ile birlikte anlamlidir, tek basina degil:</b> <c>"I"</c> ve
+    /// <c>"A"</c> BAGIMSIZ kod uzaylaridir — ayni kartta hem <c>A/1</c> (sicaklik)
+    /// hem <c>I/1</c> (darbe sensoru) bulunur ve bunlar AYRI noktalardir.
+    /// </summary>
+    public int ChannelNumber { get; set; }
 
     /// <summary>
     /// Deger STRING olarak tasinir ve string olarak saklanir
     /// (<c>IoChannel.CurrentValue</c>). Kanal basina tip yoktur: bir role icin
-    /// <c>"1"</c>, bir sicaklik icin <c>"23.5"</c> gelebilir. Yorumlama gosterim
+    /// <c>"1"</c>, bir sicaklik icin <c>"235"</c> gelebilir. Yorumlama gosterim
     /// katmaninin isidir.
     ///
     /// <c>null</c> gecerlidir ve "kanal var ama okunamadi" demektir; <c>"0"</c>
     /// ile ayni sey DEGILDIR.
+    ///
+    /// <b>Olcekleme bizde YAPILMAZ.</b> Cercevenin deger bayti tek bayttir (0-255),
+    /// yani ondalik ve negatif tasiyamaz; bir olcegin gerekmesi halinde donusumu
+    /// SCADA yapar ve <c>"23.5"</c> gonderir — alan tipi degismeden ayni yere duser.
     /// </summary>
     public string? Value { get; set; }
 
@@ -73,25 +92,29 @@ public class ScadaIngestRequestValidator : AbstractValidator<ScadaIngestRequest>
     /// </summary>
     private const int MaxValueLength = 256;
 
+    /// <summary>
+    /// Kanal numarasinin ust siniri. Kartin kendi kod bayti zaten 0-255 ile
+    /// sinirli; buradaki daha genis sinir, adresi biz uretmedigimiz icin
+    /// savunmacidir ve <see cref="ScadaPinAddress.Format"/> ciktisinin makul
+    /// uzunlukta kalmasini garanti eder.
+    /// </summary>
+    private const int MaxChannelNumber = 9999;
+
     public ScadaIngestRequestValidator()
     {
         RuleFor(v => v.CabinetId).NotEmpty().WithMessage("cabinetId zorunlu");
 
-        RuleFor(v => v.Pin).NotEmpty().WithMessage("pin zorunlu");
+        RuleFor(v => v.Type).NotEmpty().WithMessage("type zorunlu");
 
-        // Ayristirilabilirlik ve YON ayri ayri raporlanir: "IN0" ile "OUT5"
-        // ikisi de 400 dondurur ama sebepleri farklidir ve entegrasyon yapan
-        // kisinin hangisiyle karsilastigini bilmesi gerekir.
-        RuleFor(v => v.Pin)
-            .Must(pin => ScadaPinAddress.TryParse(pin, out _))
-            .When(v => !string.IsNullOrWhiteSpace(v.Pin))
-            .WithMessage("Gecersiz pin adresi. Beklenen bicim: IN1, IN2, ...");
+        RuleFor(v => v.Type)
+            .Must(type => ScadaPinAddress.TryParseType(type, out _))
+            .When(v => !string.IsNullOrWhiteSpace(v.Type))
+            .WithMessage("Gecersiz tip. Beklenen: \"I\" (dijital giris) veya \"A\" (analog giris)");
 
-        RuleFor(v => v.Pin)
-            .Must(pin => !ScadaPinAddress.TryParse(pin, out var address)
-                         || address.Direction == EntityEnums.PinDirection.Input)
-            .When(v => !string.IsNullOrWhiteSpace(v.Pin))
-            .WithMessage("Cikis pininden telemetri kabul edilmiyor; yalnizca giris pinleri (IN...) veri gonderir");
+        // Kartta 0 diye bir nokta yok; 0 bir yazim hatasidir, gecerli bir adres degil.
+        RuleFor(v => v.ChannelNumber)
+            .InclusiveBetween(1, MaxChannelNumber)
+            .WithMessage($"channelNumber 1 ile {MaxChannelNumber} arasinda olmalidir");
 
         // Deger NULL olabilir: "kanal var ama okunamadi" mesru bir durum.
         RuleFor(v => v.Value).MaximumLength(MaxValueLength)

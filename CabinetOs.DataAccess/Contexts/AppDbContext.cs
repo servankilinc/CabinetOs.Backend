@@ -110,8 +110,11 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
             i.HasOne(i => i.Cabinet).WithMany().HasForeignKey(i => i.CabinetId).OnDelete(DeleteBehavior.Restrict);
             // BENZERSIZLIK CIHAZDA DEGIL KABINDE. Kabin BIR kontrol kartidir ve
             // kartin adres uzayi duzdur: kart uzerinde "IN1" tektir. Yon de
-            // anahtarin parcasi, cunku kartta IN1 ile OUT1 AYRI noktalardir
-            // (5 baytlik cerceve girisi 'I', cikisi 'O' basligiyla ayirir).
+            // anahtarin parcasi, cunku kartta IN1, AI1 ve OUT1 UC AYRI noktadir:
+            // cerceve basligi dijital girisi 'I', analog girisi 'A', cikisi 'O'
+            // ile ayirir ve bu uc kod uzayi BAGIMSIZDIR (ayni kartta hem A/1
+            // sicaklik hem I/1 darbe sensoru bulunur). Yon anahtardan cikarilirsa
+            // bu noktalar tek satira duser ve birbirlerinin degerini ezerler.
             i.HasIndex(i => new { i.CabinetId, i.Direction, i.ChannelNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
             // ChannelEvent iliskisi Entity<ChannelEvent> blogunda tanimli — ayni
             // iliskiyi iki yerde yapilandirmak, ikisi ayrisirsa sessiz bir surpriz olur.
@@ -698,6 +701,15 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
 
         Template(EntityEnums.DeviceType.InputModule, "8 Kanal Giris Karti", 200, 260,
             [.. Series("IN", 8, EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Signal_In, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.Signal_5V, numberChannels: true),
+             new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
+             new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V)]);
+
+        // Analog giris karti. Kanallari dijital giris kartiyla AYNI numaralari
+        // kullanabilir (AI1 ile IN1 ayri noktalardir) — ayrimi yapan
+        // PinDirection.AnalogInput'tur ve IoChannel'in benzersiz indeksi bunu
+        // zorlar. Telemetri uretir, kalici olay uretmez, kumanda hedefi olamaz.
+        Template(EntityEnums.DeviceType.MeasurementDevice, "4 Kanal Analog Giris Karti", 200, 200,
+            [.. Series("AI", 4, EntityEnums.HandleSide.Left, EntityEnums.PinFunction.Analog_In, EntityEnums.PinDirection.AnalogInput, EntityEnums.VoltageLevel.Signal_5V, numberChannels: true),
              new PinSpec("+12V", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.VCC, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V),
              new PinSpec("GND", EntityEnums.HandleSide.Right, EntityEnums.PinFunction.GND, EntityEnums.PinDirection.Input, EntityEnums.VoltageLevel.DC_12V)]);
 

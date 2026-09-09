@@ -89,14 +89,14 @@ public class ChannelEventService : IChannelEventService
         if (!validationResult.IsValid)
             return Result.Validation(validationResult.Failures, description: "Validation failed for ScadaIngestRequest");
 
-        // Dogrulama gectiyse ayristirma da gecer — ikisi AYNI ayristiriciyi
-        // kullaniyor. Yine de sessizce varsaymiyoruz: TryParse'in sonucu
-        // kullanilmadan once kontrol ediliyor ki iki taraf ileride ayrisirsa
-        // bu, gizli bir yanlis okuma degil gorunur bir 400 olsun.
-        if (!ScadaPinAddress.TryParse(request.Pin, out var pin))
+        // Dogrulama gectiyse cevrim de gecer — ikisi AYNI cevirici uzerinden
+        // gidiyor. Yine de sessizce varsaymiyoruz: sonuc kullanilmadan once
+        // kontrol ediliyor ki iki taraf ileride ayrisirsa bu, gizli bir yanlis
+        // okuma degil gorunur bir 400 olsun.
+        if (!ScadaPinAddress.TryParseType(request.Type, out var direction))
             return Result.Validation(
-                new Dictionary<string, string[]> { ["Pin"] = ["Gecersiz pin adresi"] },
-                description: "Invalid pin address");
+                new Dictionary<string, string[]> { ["Type"] = ["Gecersiz tip"] },
+                description: "Invalid signal type");
 
         var cabinet = await _unitOfWork.Cabinets.GetAsync(
             where: c => c.Id == request.CabinetId && c.IsActive,
@@ -124,8 +124,8 @@ public class ChannelEventService : IChannelEventService
         // edilemezdi.
         var channel = await _unitOfWork.IoChannels.GetAsync(
             where: c => c.CabinetId == cabinet.Id
-                     && c.Direction == pin.Direction
-                     && c.ChannelNumber == pin.ChannelNumber
+                     && c.Direction == direction
+                     && c.ChannelNumber == request.ChannelNumber
                      && c.IsEnabled,
             tracking: true,
             cancellationToken: cancellationToken);
@@ -142,10 +142,13 @@ public class ChannelEventService : IChannelEventService
             //
             // Bastirma/deduplikasyon YOK (bilincli): sorun cikarsa care, pin
             // basina bastirmayi IDistributedCache ile eklemektir.
+            // Uyari KARTIN KENDI DILINDE yazilir ("IN7", "AI1"): sahadaki kisi
+            // yapilandirmayi o adresle konusuyor, "Direction=3, ChannelNumber=1"
+            // ile degil.
             _logger.LogWarning(
                 "Kabin {CabinetId}: {Pin} pini tanimsiz (ya da devre disi); telemetri atlandi.",
                 cabinet.Id,
-                pin.ToString());
+                ScadaPinAddress.Format(direction, request.ChannelNumber));
 
             return Result.Success();
         }
@@ -365,10 +368,18 @@ public class ChannelEventService : IChannelEventService
     ///
     /// Karar zinciri (sirayla):
     /// <list type="number">
-    /// <item><b>Yon.</b> Yalnizca giris kanallari olay uretir. Bir cikisi biz
-    /// surduugumuzde donen deger bir saha olayi degil, kendi komutumuzun
+    /// <item><b>Yon.</b> Yalnizca DIJITAL giris kanallari olay uretir. Bir cikisi
+    /// biz surduugumuzde donen deger bir saha olayi degil, kendi komutumuzun
     /// yankisidir ve kaydi zaten <c>DeviceCommand</c>'dadir. <c>Bidirectional</c>
-    /// da disaridadir: yonu belirsiz bir kanalin olayi da belirsizdir.</item>
+    /// da disaridadir: yonu belirsiz bir kanalin olayi da belirsizdir.
+    ///
+    /// <b><c>AnalogInput</c> de KASTEN disaridadir</b> — bu, esitligin
+    /// <c>!= Input</c> olmasinin yan etkisi degil, karardir. Analog bir giris
+    /// esik/olu bant olmadan her cerceve icin bir satir yazardi (sicaklik 23-24
+    /// arasinda segirirken saniyede bir olay) ve tabloda saklama temizligi YOK.
+    /// Referans proje ayni derdi analog icin 5 dakikalik bir aralik kuraliyla
+    /// cozuyordu. Anlik deger (<c>CurrentValue</c>) ve canli yayin etkilenmez;
+    /// kaybedilen yalnizca kalici gecmistir.</item>
     /// <item><b>Deger.</b> Okunabilir ve olay kolonuna sigan her deger yazilir.</item>
     /// </list>
     ///

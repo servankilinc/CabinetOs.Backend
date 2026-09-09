@@ -1,90 +1,77 @@
-using System.Globalization;
 using CabinetOs.Model.Enums;
 
 namespace CabinetOs.Model.Dtos.Scada.Commands;
 
 /// <summary>
-/// Kart uzerindeki bir noktanin metinsel adresi — <c>"IN1"</c>, <c>"OUT17"</c>.
+/// Kartin nokta dili — cerceve basligi ('I'/'A'/'O') ile bizim
+/// <see cref="EntityEnums.PinDirection"/>'imiz arasindaki TEK ceviri yeri.
 ///
-/// <b>Neden tek string, neden iki ayri alan degil.</b> Bu, kartin kendi dilidir:
-/// 5 baytlik cerceve noktayi bir yon basligi ('I'/'O') ve bir numara ile
-/// adresler, referans proje de ayni ikiliyi <c>InOut + Code</c> olarak saklar.
-/// Govdede <c>"IN1"</c> gormek, SCADA ekibine verilen spesifikasyonda
-/// <c>direction: 0, channelNumber: 1</c>'den karsilastirilamayacak kadar
-/// okunaklidir.
+/// Iki yonu vardir ve ikisi ASIMETRIKTIR:
+/// <list type="bullet">
+/// <item><b>Gelen (telemetri).</b> Govde cerceveyi alanlarina bolerek tasir:
+/// <c>type: "I" | "A"</c> + <c>channelNumber</c>. Basligi yone ceviren
+/// <see cref="TryParseType"/>'dir.</item>
+/// <item><b>Giden (kumanda).</b> Zarf noktayi TEK metin olarak tasir —
+/// <c>"OUT5"</c>, <c>"OUT17"</c> (LED). Uretimi <see cref="Format"/>'ta.</item>
+/// </list>
 ///
-/// <b>Tek ayristirici olmasi bilincli.</b> Hem dogrulama hem servis buradan
-/// gecer; ikisi ayri ayri ayristirsaydi "dogrulamadan gecti ama cozulemedi"
-/// gibi sessiz bir tutarsizlik mumkun olurdu.
+/// <b>Tek ceviri yeri olmasi bilincli.</b> Hem dogrulama hem servis buradan
+/// gecer; ikisi ayri ayri cozseydi "dogrulamadan gecti ama cozulemedi" gibi
+/// sessiz bir tutarsizlik mumkun olurdu.
 ///
 /// Sozlesme: <c>docs/api-contract/07-scada-ingest.md</c>
 /// </summary>
-public readonly record struct ScadaPinAddress(EntityEnums.PinDirection Direction, int ChannelNumber)
+public static class ScadaPinAddress
 {
     /// <summary>
-    /// Numaranin en fazla basamak sayisi. Sinir keyfi degil: <c>int.Parse</c>'in
-    /// tasmasini ayristirmadan ONCE imkansiz kilar, boylece gecersiz girdi
-    /// istisna degil <c>false</c> uretir.
-    /// </summary>
-    private const int MaxDigits = 4;
-
-    /// <summary>
-    /// <c>"IN"</c> / <c>"OUT"</c> on eki -> yon. Buyuk/kucuk harf duyarsiz.
+    /// Cerceve basligi -> yon. <c>"I"</c> dijital giris, <c>"A"</c> analog giris.
+    /// Buyuk/kucuk harf duyarsiz, bastaki/sondaki bosluk tolere edilir.
     ///
-    /// LED icin AYRI bir on ek YOK ve bu bilincli: kart LED'i rolelerle ayni duz
-    /// cikis uzayinda adresliyor (role 1-16, LED 17-24) ve ikisine de ayni 'O'
-    /// basligini yaziyor. LED = <c>OUT17..OUT24</c>.
+    /// <b><c>"O"</c> KASTEN taninmaz.</b> Cikis telemetri gondermez: bir roleyi biz
+    /// surdugumuzde donen deger saha olayi degil kendi komutumuzun yankisidir ve
+    /// kaydi zaten <c>DeviceCommand</c>'dadir. Referans projedeki cozumleyici de
+    /// gelen tarafta yalnizca <c>'I'</c> ve <c>'A'</c> isler. Boylece gecersiz bir
+    /// yon govdede IFADE EDILEMEZ hale gelir — ayrica reddedilmesi gereken bir
+    /// durum olmaktan cikar.
+    ///
+    /// <c>Bidirectional</c>'in de karsiligi yoktur: kart her noktayi ya giris ya
+    /// cikis olarak adresler.
     /// </summary>
-    private static readonly (string Prefix, EntityEnums.PinDirection Direction)[] Prefixes =
-    [
-        // "OUT" once denenmeli: "IN" ile baslamiyor ama uzun on ekin kisa olandan
-        // once gelmesi, ileride ortak harfle baslayan bir on ek eklenirse
-        // kuralin kendiliginden dogru kalmasini saglar.
-        ("OUT", EntityEnums.PinDirection.Output),
-        ("IN", EntityEnums.PinDirection.Input)
-    ];
-
-    public static bool TryParse(string? value, out ScadaPinAddress address)
+    public static bool TryParseType(string? type, out EntityEnums.PinDirection direction)
     {
-        address = default;
-        if (string.IsNullOrWhiteSpace(value)) return false;
+        direction = default;
+        if (string.IsNullOrWhiteSpace(type)) return false;
 
-        var text = value.Trim();
-
-        foreach (var (prefix, direction) in Prefixes)
+        switch (type.Trim().ToUpperInvariant())
         {
-            if (!text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
-
-            var digits = text.AsSpan(prefix.Length);
-            if (digits.Length is 0 or > MaxDigits) return false;
-
-            foreach (var c in digits)
-                if (!char.IsAsciiDigit(c)) return false;
-
-            var number = int.Parse(digits, NumberStyles.None, CultureInfo.InvariantCulture);
-
-            // Kartta 0 diye bir nokta yok; "IN0" bir yazim hatasidir, gecerli bir
-            // adres degil.
-            if (number <= 0) return false;
-
-            address = new ScadaPinAddress(direction, number);
-            return true;
+            case "I":
+                direction = EntityEnums.PinDirection.Input;
+                return true;
+            case "A":
+                direction = EntityEnums.PinDirection.AnalogInput;
+                return true;
+            default:
+                return false;
         }
-
-        return false;
     }
 
-    /// <summary>Kanal referansindan metinsel adres — giden kumanda govdesi icin.</summary>
+    /// <summary>
+    /// Kanal referansindan metinsel adres.
+    ///
+    /// Iki yerde kullanilir: giden kumanda zarfinin <c>Pin</c> alani ve INSAN OKUR
+    /// metinler (diyagram kaydetme hatalari, ingest'in "tanimsiz pin" uyarisi).
+    /// Ikisinde de kartin kendi dili, <c>direction: 0, channelNumber: 1</c>
+    /// ikilisinden karsilastirilamayacak kadar okunaklidir.
+    /// </summary>
     public static string Format(EntityEnums.PinDirection direction, int channelNumber) =>
         direction switch
         {
-            EntityEnums.PinDirection.Output => $"OUT{channelNumber}",
             EntityEnums.PinDirection.Input => $"IN{channelNumber}",
+            EntityEnums.PinDirection.AnalogInput => $"AI{channelNumber}",
+            EntityEnums.PinDirection.Output => $"OUT{channelNumber}",
             // Bidirectional'in kart karsiligi yok: kart her noktayi ya giris ya
             // cikis olarak adresler. Kumanda yolu bu kanali cikis olarak surer,
             // adres de oyle yazilir.
             _ => $"OUT{channelNumber}"
         };
-
-    public override string ToString() => Format(Direction, ChannelNumber);
 }
